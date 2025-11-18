@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Список Документів (Tabulator)</title>
+    <link href="https://unpkg.com/tabulator-tables@6.2.0/dist/css/tabulator.min.css" rel="stylesheet">
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        /* Це div, в якому Tabulator створить таблицю */
+        #documents-table {
+            border: 1px solid #ccc; 
+            min-height: 400px;
+        }
+    </style>
+</head>
+<body>
+    <div style="text-align: center; margin-bottom: 20px;">
+        <h1>Перелік Усіх Облікових Документів (Tabulator)</h1>
+        <p><a href="{{ url_for('create_document') }}">Створити Новий Документ</a></p>
+    </div>
+
+    <div id="documents-table"></div>
+
+    <script type="text/javascript" src="https://unpkg.com/tabulator-tables@6.2.0/dist/js/tabulator.min.js"></script>
+
+    <script type="text/javascript">
+        // Функція для форматування колонки "Дії" з посиланнями
+        var actionsFormatter = function(cell, formatterParams, onRender){
+            var docId = cell.getValue();
+            var viewUrl = "/document/" + docId;
+            var editUrl = "/document/edit/" + docId;
+            
+            return `
+                <a href="${viewUrl}">Переглянути</a> | 
+                <a href="${editUrl}">Редагувати</a>
+            `;
+        };
+
+        // Ініціалізація Tabulator
+        var table = new Tabulator("#documents-table", {
+            // URL для отримання даних з Flask API
+            ajaxURL: "/api/documents", 
+            layout: "fitColumns", // Адаптивна ширина колонок
+            pagination: "local",
+            paginationSize: 10,
+            
+            columns: [
+                {title: "ID", field: "id", width: 120, sorter: "string"},
+                {
+                    title: "Дата", 
+                    field: "date", 
+                    width: 160,
+                    sorter: "datetime",
+                    
+                    sorterParams: {
+                        format: "yyyy-MM-dd HH:mm:ss",
+                        alignEmptyValues: "top",
+                    },
+
+                    headerFilter: "input", 
+                },
+                {title: "Тип Операції", field: "type", sorter: "string"},
+                {title: "Контрагент", field: "counterparty_name", sorter: "string"},
+                {title: "Сума", field: "amount", sorter: "number", hozAlign: "right"},
+                {title: "Валюта", field: "currency", width: 80, hozAlign: "center"},
+                // Колонка "Дії" використовує форматер для створення посилань
+                {title: "Дії", field: "actions", formatter: actionsFormatter, width: 150, hozAlign: "center", headerSort: false},
+            ],
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <title>Перегляд Документа: {{ document.operation_type }} №{{ document.documents_id[:8] }}</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; }
+        .container { max-width: 900px; margin: 0 auto; }
+        h1, h2 { text-align: center; }
+        .header-info { background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
+        .header-info div { margin-bottom: 8px; }
+        .header-info strong { display: inline-block; width: 120px; }
+        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
+        th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
+        th { background-color: #e0e0e0; }
+        .total-row { font-weight: bold; background-color: #fffacd; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>{{ document.operation_type }}</h1>
+        <p style="text-align: center;"><a href="{{ url_for('documents_list') }}">← Назад до списку</a></p>
+        
+        <h2>Заголовок</h2>
+        <div class="header-info">
+            <div><strong>ID:</strong> {{ document.documents_id }}</div>
+            <div><strong>Дата:</strong> {{ document.document_date.strftime('%Y-%m-%d %H:%M') if document.document_date else 'Н/Д' }}</div>
+            <div><strong>Контрагент:</strong> {{ document.counterparty.counterparty_name if document.counterparty else 'Немає' }}</div>
+            <div><strong>Сума (без ПДВ):</strong> {{ document.amount }} {{ document.currency }}</div>
+        </div>
+
+        <h2>Таблична Частина (Номенклатура)</h2>
+        <table>
+            <thead>
+                <tr>
+                    <th>№</th>
+                    <th>Номенклатура</th>
+                    <th>Кількість</th>
+                    <th>Од. вим.</th>
+                    <th>Ціна (з ПДВ)</th>
+                    <th>ПДВ</th>
+                    <th>Сума (без ПДВ)</th>
+                    <th>Сума (з ПДВ)</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% set totals = namespace(with_vat=0.0, without_vat=0.0) %}
+                
+                {% for line in lines %}
+                <tr>
+                    <td>{{ loop.index }}</td>
+                    <td>{{ line.nomenclature.nomenclature_name if line.nomenclature else 'Н/Д' }}</td>
+                    <td>{{ line.quantity }}</td>
+                    <td>{{ line.unit | default('шт') }}</td>
+                    <td>{{ line.price_with_vat }}</td>
+                    <td>{{ line.vat_amount }}</td> 
+                    <td>{{ line.total_amount }}</td>
+                    <td>{{ line.total_with_vat }}</td>
+                </tr>
+                
+                {% set totals.with_vat = totals.with_vat + (line.total_with_vat | string | float) %}
+                {% set totals.without_vat = totals.without_vat + (line.total_amount | string | float) %}
+                
+                {% endfor %}
+            </tbody>
+            <tfoot>
+                <tr class="total-row">
+                    <td colspan="6" style="text-align: right;">Загальна Сума:</td>
+                    
+                    <td>{{ "%.2f" | format(totals.without_vat) }}</td> 
+                    <td>{{ "%.2f" | format(totals.with_vat) }}</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <div style="margin-top: 20px; text-align: center;">
+             <a href="{{ url_for('documents_list') }}" style="display: inline-block; margin-top: 10px;">Повернутися до списку</a>
+        </div>
+    </div>
+</body>
+</html>
