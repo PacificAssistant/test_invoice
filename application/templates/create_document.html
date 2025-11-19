@@ -1,22 +1,13 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <title>Створення Документа</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        form { max-width: 800px; margin: 0 auto; padding: 20px; border: 1px solid #ccc; border-radius: 5px; }
-        .form-group { margin-bottom: 15px; }
-        .form-group label { display: block; margin-bottom: 5px; font-weight: bold; }
-        .form-group input, .form-group select, .form-group button { width: 100%; padding: 8px; box-sizing: border-box; }
-        .document-lines { border-top: 2px solid #ddd; margin-top: 20px; padding-top: 15px; }
-        .line-row { display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px; }
-        .line-row > div { flex: 1; }
-        .error-message { color: red; font-weight: bold; text-align: center; margin-bottom: 15px; }
-    </style>
-</head>
-<body>
-    <div style="text-align: center;">
+{% extends "base.html" %}
+
+{% block title %}Створення Документа{% endblock %}
+
+{% block head %}
+    
+{% endblock %}
+
+{% block content %}
+    <div style="text-align: center; margin-bottom: 20px;">
         <h1>Створення Нового Облікового Документа</h1>
         <p><a href="{{ url_for('documents_list') }}">← Назад до списку</a></p>
     </div>
@@ -26,17 +17,18 @@
     {% endif %}
 
     <form method="POST">
+        {{ form.hidden_tag() }}
+
         <h2>Заголовок Документа</h2>
         
         <div class="form-group">
-            <label for="operation_type">Тип Документа:</label>
-            <select id="operation_type" name="operation_type" required>
-                <option value="">Оберіть тип</option>
-                <option value="Замовлення">Замовлення</option>
-                <option value="Рахунок фактура">Рахунок фактура</option>
-                <option value="Прибуткова накладна">Прибуткова накладна</option>
-                <option value="Видаткова накладна">Видаткова накладна</option>
-            </select>
+            {{ form.operation_type.label }} {{ form.operation_type(class="form-control") }} 
+            
+            {% if form.operation_type.errors %}
+                {% for error in form.operation_type.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
+                {% endfor %}
+            {% endif %}
         </div>
 
         <div class="form-group">
@@ -45,22 +37,23 @@
         </div>
         
         <div class="form-group">
-            <label for="counterparty_id">Контрагент:</label>
-            <select id="counterparty_id" name="counterparty_id" required>
-                <option value="">Оберіть контрагента</option>
-                {% for cp in counterparties %}
-                <option value="{{ cp.counterparty_id }}">{{ cp.counterparty_name }}</option>
+            {{ form.counterparty_id.label }}
+            {{ form.counterparty_id() }}
+            {% if form.counterparty_id.errors %}
+                {% for error in form.counterparty_id.errors %}
+                    <span style="color: red;">[{{ error }}]</span>
                 {% endfor %}
-            </select>
+            {% endif %}
         </div>
         
         <div class="document-lines">
-            <h2>Таблична Частина (Рядок 1)</h2>
+            <h2>Товари / Послуги</h2>
+            
             <div id="lines-container">
                 <div class="line-row" data-line-index="0">
                     <div>
-                        <label for="line_nomenclature_id_0">Номенклатура:</label>
-                        <select id="line_nomenclature_id_0" name="line_nomenclature_id_0" required>
+                        <label for="lines-0-nomenclature_id">Номенклатура:</label>
+                        <select id="lines-0-nomenclature_id" name="lines-0-nomenclature_id" required>
                             <option value="">Оберіть номенклатуру</option>
                             {% for item in nomenclatures %}
                             <option value="{{ item.nomenclature_id }}">{{ item.nomenclature_name }}</option>
@@ -68,20 +61,28 @@
                         </select>
                     </div>
                     <div>
-                        <label for="line_quantity_0">Кількість:</label>
-                        <input type="number" id="line_quantity_0" name="line_quantity_0" value="1" min="0.01" step="any" required>
+                        <label for="lines-0-quantity">Кількість:</label>
+                        <input type="number" id="lines-0-quantity" name="lines-0-quantity" value="1" min="0.01" step="any" required>
                     </div>
                     <div>
-                        <label for="line_price_with_vat_0">Ціна :</label>
-                        <input type="number" id="line_price_with_vat_0" name="line_price_with_vat_0" value="100.00" min="0.01" step="any" required>
+                        <label for="lines-0-price_with_vat">Ціна:</label>
+                        <input type="number" id="lines-0-price_with_vat" name="lines-0-price_with_vat" value="0.00" min="0.01" step="any" required>
                     </div>
+                    <div class="remove-btn-container"></div>
                 </div>
             </div>
-            </div>
 
-        <div class="form-group" style="margin-top: 30px;">
-            <button type="submit">Створити Документ</button>
+            <button type="button" class="btn-add" onclick="addLine()">+ Додати Рядок</button> 
+        </div>
+
+        <div class="form-group" style="margin-top: 30px; border-top: 2px solid #333; padding-top: 20px;">
+            <button type="submit" style="background-color: #28a745; color: white; font-size: 18px; font-weight: bold; cursor: pointer; padding: 12px;">
+                Зберегти Документ
+            </button>
         </div>
     </form>
-</body>
-</html>
+{% endblock %}
+
+{% block scripts %}
+    
+{% endblock %}

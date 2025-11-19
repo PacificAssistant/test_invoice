@@ -84,11 +84,7 @@ def create_document():
         for cp in counterparties_data
     ]
 
-    # Якщо вам потрібно передати номенклатуру як options для JS/HTML форми,
-    # її можна передати окремо в render_template, оскільки FieldList складний для SelectField WTForms.
-    # В цьому прикладі ми використаємо номенклатуру для шаблону, як у вашій сирій версії.
-
-
+    print("FORM DATA:", request.form)
     if form.validate_on_submit():
         try:
             doc_id = str(uuid.uuid4())
@@ -150,7 +146,9 @@ def create_document():
             db.session.rollback()
             flash(f"Помилка при збереженні документа. Деталі: {e}", 'error')
             # Форма автоматично відобразить помилки валідації полів
-
+    else:
+        # ДОДАЙТЕ ЦЕЙ РЯДОК, щоб бачити чому форма не проходить
+        print("VALIDATION ERRORS:", form.errors)
     # GET request або POST request з помилкою валідації форми
     return render_template('create_document.html', 
                             form=form, 

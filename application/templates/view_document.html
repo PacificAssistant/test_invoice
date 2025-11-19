@@ -1,25 +1,20 @@
-<!DOCTYPE html>
-<html lang="uk">
-<head>
-    <meta charset="UTF-8">
-    <title>Перегляд Документа: {{ document.operation_type }} №{{ document.documents_id[:8] }}</title>
-    <style>
-        body { font-family: Arial, sans-serif; margin: 20px; }
-        .container { max-width: 900px; margin: 0 auto; }
-        h1, h2 { text-align: center; }
-        .header-info { background-color: #f4f4f4; padding: 15px; border-radius: 5px; margin-bottom: 20px; }
-        .header-info div { margin-bottom: 8px; }
-        .header-info strong { display: inline-block; width: 120px; }
-        table { width: 100%; border-collapse: collapse; margin-top: 15px; }
-        th, td { border: 1px solid #ccc; padding: 10px; text-align: left; }
-        th { background-color: #e0e0e0; }
-        .total-row { font-weight: bold; background-color: #fffacd; }
-    </style>
-</head>
-<body>
-    <div class="container">
+{% extends "base.html" %}
+
+{% block title %}
+    Перегляд: {{ document.operation_type }} №{{ document.documents_id[:8] }}
+{% endblock %}
+
+{% block head %}
+
+{% endblock %}
+
+{% block content %}
+    <div class="doc-container">
         <h1>{{ document.operation_type }}</h1>
-        <p style="text-align: center;"><a href="{{ url_for('documents_list') }}">← Назад до списку</a></p>
+        
+        <div class="nav-links">
+            <a href="{{ url_for('documents_list') }}">← Назад до списку</a>
+        </div>
         
         <h2>Заголовок</h2>
         <div class="header-info">
@@ -30,7 +25,7 @@
         </div>
 
         <h2>Таблична Частина (Номенклатура)</h2>
-        <table>
+        <table class="doc-table">
             <thead>
                 <tr>
                     <th>№</th>
@@ -73,9 +68,8 @@
             </tfoot>
         </table>
 
-        <div style="margin-top: 20px; text-align: center;">
-             <a href="{{ url_for('documents_list') }}" style="display: inline-block; margin-top: 10px;">Повернутися до списку</a>
+        <div style="margin-top: 30px; text-align: center;">
+             <a href="{{ url_for('documents_list') }}">Повернутися до списку</a>
         </div>
     </div>
-</body>
-</html>
+{% endblock %}

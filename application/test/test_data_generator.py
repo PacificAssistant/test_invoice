@@ -45,7 +45,7 @@ def create_test_data():
     # 3. Створення 100 Документів
     doc_types = ["Замовлення", "Рахунок фактура", "Прибуткова накладна", "Видаткова накладна"]
     
-    for i in range(1, 101):
+    for i in range(1, 10):
         doc_id = str(uuid.uuid4())
         current_dt = datetime.now()
         

@@ -1,0 +1,130 @@
+
+form { 
+    max-width: 800px; 
+    margin: 0 auto; 
+    padding: 20px; 
+    border: 1px solid #ccc; 
+    border-radius: 5px; 
+}
+.form-group { 
+    margin-bottom: 15px; 
+}
+.form-group label { 
+    display: block; 
+    margin-bottom: 5px; 
+    font-weight: bold; 
+}
+.form-group input, .form-group select, .form-group button { 
+    width: 100%; 
+    padding: 8px; 
+    box-sizing: border-box; 
+}
+
+/* Стилі для рядків таблиці */
+.document-lines { 
+    border-top: 2px solid #ddd; 
+    margin-top: 20px; 
+    padding-top: 15px; 
+}
+.line-row { 
+    display: flex; 
+    gap: 10px; 
+    align-items: flex-end; 
+    margin-bottom: 15px; 
+    padding-bottom: 10px;
+    border-bottom: 1px dashed #eee;
+}
+.line-row > div { 
+    flex: 1; 
+}
+
+/* Стилі повідомлень */
+.error-message { 
+    color: red; 
+    font-weight: bold; 
+    text-align: center; 
+    margin-bottom: 15px; 
+}
+
+/* Кнопка додавання */
+.btn-add {
+    background-color: #007bff;
+    color: white;
+    border: none;
+    cursor: pointer;
+    margin-top: 10px;
+}
+.btn-add:hover {
+    background-color: #0056b3;
+}
+
+/* Кнопка видалення (червоний хрестик) */
+.remove-btn-container {
+    flex: 0 0 40px !important; /* Фіксована ширина */
+    display: flex;
+    align-items: flex-end;
+}
+.btn-remove {
+    background-color: #dc3545;
+    color: white;
+    border: none;
+    cursor: pointer;
+    height: 35px;
+    font-weight: bold;
+}
+
+
+
+/* Стилі специфічні для сторінки перегляду документа */
+.doc-container { 
+    max-width: 900px; 
+    margin: 20px auto; 
+}
+.doc-container h1, .doc-container h2 { 
+    text-align: center; 
+}
+.header-info { 
+    background-color: #f4f4f4; 
+    padding: 15px; 
+    border-radius: 5px; 
+    margin-bottom: 20px; 
+    border: 1px solid #ddd;
+}
+.header-info div { 
+    margin-bottom: 8px; 
+}
+.header-info strong { 
+    display: inline-block; 
+    width: 150px; 
+}
+
+/* Стилі таблиці */
+.doc-table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    margin-top: 15px; 
+}
+.doc-table th, .doc-table td { 
+    border: 1px solid #ccc; 
+    padding: 10px; 
+    text-align: left; 
+}
+.doc-table th { 
+    background-color: #e0e0e0; 
+}
+.total-row { 
+    font-weight: bold; 
+    background-color: #fffacd; 
+}
+
+/* Стиль для кнопок навігації */
+.nav-links {
+    text-align: center;
+    margin-bottom: 15px;
+}
+
+#documents-table {
+    border: 1px solid #ccc; 
+    min-height: 400px;
+    margin-top: 20px;
+}
