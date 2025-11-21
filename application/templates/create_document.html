@@ -50,26 +50,44 @@
             <h2>Товари / Послуги</h2>
             
             <div id="lines-container">
-                <div class="line-row" data-line-index="0">
+                {% for line_form in form.lines %}
+                <div class="line-row" data-line-index="{{ loop.index0 }}">
                     <div>
-                        <label for="lines-0-nomenclature_id">Номенклатура:</label>
-                        <select id="lines-0-nomenclature_id" name="lines-0-nomenclature_id" required>
+                        <label for="{{ line_form.nomenclature_id.id }}">Номенклатура:</label>
+                        <select id="{{ line_form.nomenclature_id.id }}" name="{{ line_form.nomenclature_id.name }}" required>
                             <option value="">Оберіть номенклатуру</option>
                             {% for item in nomenclatures %}
-                            <option value="{{ item.nomenclature_id }}">{{ item.nomenclature_name }}</option>
+                                <option value="{{ item.nomenclature_id }}" 
+                                    {% if line_form.nomenclature_id.data == item.nomenclature_id %}selected{% endif %}>
+                                    {{ item.nomenclature_name }}
+                                </option>
                             {% endfor %}
                         </select>
                     </div>
                     <div>
-                        <label for="lines-0-quantity">Кількість:</label>
-                        <input type="number" id="lines-0-quantity" name="lines-0-quantity" value="1" min="0.01" step="any" required>
+                        <label for="{{ line_form.quantity.id }}">Кількість:</label>
+                        <input type="number" 
+                            id="{{ line_form.quantity.id }}" 
+                            name="{{ line_form.quantity.name }}" 
+                            value="{{ line_form.quantity.data or 1 }}" 
+                            min="0.01" step="any" required>
                     </div>
                     <div>
-                        <label for="lines-0-price_with_vat">Ціна:</label>
-                        <input type="number" id="lines-0-price_with_vat" name="lines-0-price_with_vat" value="0.00" min="0.01" step="any" required>
+                        <label for="{{ line_form.price_with_vat.id }}">Ціна:</label>
+                        <input type="number" 
+                            id="{{ line_form.price_with_vat.id }}" 
+                            name="{{ line_form.price_with_vat.name }}" 
+                            value="{{ line_form.price_with_vat.data or 0.00 }}" 
+                            min="0.01" step="any" required>
                     </div>
-                    <div class="remove-btn-container"></div>
+                    
+                    <div class="remove-btn-container">
+                        {% if loop.index0 > 0 %}
+                        <button type="button" class="btn-remove" onclick="removeLine(this)">X</button>
+                        {% endif %}
+                    </div>
                 </div>
+                {% endfor %}
             </div>
 
             <button type="button" class="btn-add" onclick="addLine()">+ Додати Рядок</button> 

@@ -1,12 +1,21 @@
 from application.models import Document, Counterparty, Nomenclature, DocumentLine
 from flask import render_template, url_for, redirect , jsonify, request, abort, flash
+from sqlalchemy import func, case, and_
 from sqlalchemy.orm import selectinload
 from datetime import date, datetime
+from decimal import Decimal
 import uuid
 
+
 from application import app,db
-from application.models import Document, Counterparty 
-from application.forms import DocumentLineForm, DocumentForm
+from application.models import Document, Counterparty , InventoryBalance
+from application.forms import DocumentLineForm, DocumentForm, ReportForm
+from application.services.DocumentService import DocumentService
+from application.services.services import DocumentPostingService
+from application.services.exceptions import PostingError, InsufficientStockError
+
+
+
 
 
 @app.route('/')
@@ -46,21 +55,8 @@ def documents_api():
     return jsonify(data)
 
 
-def calculate_line_amounts(quantity, price_with_vat):
-    VAT_RATE = 0.20 # 20%
-    VAT_MULTIPLIER = 1 + VAT_RATE
-    """Виконує розрахунки сум для одного рядка документа."""
-    price_without_vat = price_with_vat / VAT_MULTIPLIER
-    total_with_vat = quantity * price_with_vat
-    total_without_vat = quantity * price_without_vat
-    vat_amount = total_with_vat - total_without_vat
-    
-    return {
-        'price_without_vat': price_without_vat,
-        'total_without_vat': total_without_vat,
-        'total_with_vat': total_with_vat,
-        'vat_amount': vat_amount,
-    }
+
+
 
 @app.route('/document/new', methods=['GET', 'POST'])
 def create_document():
@@ -84,7 +80,6 @@ def create_document():
         for cp in counterparties_data
     ]
 
-    print("FORM DATA:", request.form)
     if form.validate_on_submit():
         try:
             doc_id = str(uuid.uuid4())
@@ -108,7 +103,7 @@ def create_document():
                 nomenclature_id = line_form.data['nomenclature_id'] # Вимагає обробки в HTML
                 
                 # Розрахунки
-                amounts = calculate_line_amounts(quantity, price_with_vat)
+                amounts = DocumentService.calculate_line_amounts(quantity, price_with_vat)
                 total_doc_amount_without_vat += amounts['total_without_vat']
                 
                 # Створення запису DocumentLine (використовуємо числові значення)
@@ -120,7 +115,7 @@ def create_document():
                     unit="шт.", 
                     price_with_vat=round(price_with_vat, 2),
                     total_with_vat=round(amounts['total_with_vat'], 2),
-                    vat_amount=round(amounts['vat_amount'], 2), 
+                    vat_amount=round(amounts['vat_amount'], 2),
                     total_amount=round(amounts['total_without_vat'], 2),
                 )
                 db.session.add(new_line)
@@ -130,7 +125,7 @@ def create_document():
                 documents_id=doc_id,
                 document_date=doc_date,
                 operation_type=operation_type,
-                amount=round(total_doc_amount_without_vat, 2),
+                total_amount=round(total_doc_amount_without_vat, 2),
                 currency="UAH",
                 counterparty_id=counterparty_id,
                 # is_posted=False за замовчуванням
@@ -139,20 +134,21 @@ def create_document():
             
             # 5. Збереження та Перенаправлення
             db.session.commit()
-            flash(f'Документ {doc_id} успішно створено!', 'success')
+            print(f'Документ {doc_id} успішно створено!', 'success')
             return redirect(url_for('documents_list'))
 
         except Exception as e:
             db.session.rollback()
-            flash(f"Помилка при збереженні документа. Деталі: {e}", 'error')
+            print(f"Помилка при збереженні документа. Деталі: {e}", 'error')
             # Форма автоматично відобразить помилки валідації полів
-    else:
-        # ДОДАЙТЕ ЦЕЙ РЯДОК, щоб бачити чому форма не проходить
-        print("VALIDATION ERRORS:", form.errors)
-    # GET request або POST request з помилкою валідації форми
+        
+
     return render_template('create_document.html', 
                             form=form, 
                             nomenclatures=nomenclatures_data) # Передаємо номенклатуру для JS/HTML таблиці
+
+
+    
 @app.route('/document/<string:doc_id>')
 def view_document(doc_id):
     # 1. Завантажуємо Заголовок Документа
@@ -179,7 +175,240 @@ def view_document(doc_id):
     # 3. Передаємо дані в шаблон
     return render_template('view_document.html', document=document, lines=lines)
 
-@app.route('/document/edit/<string:doc_id>')
-def edit_document(doc_id):
-    return f"<h1>Редагування документа ID: {doc_id} (У розробці)</h1>"
 
+
+
+@app.route('/document/<string:doc_id>/post', methods=['POST'])
+def post_document(doc_id):
+    posting_service = DocumentPostingService(db.session)
+
+    try:
+        posting_service.post_document(doc_id)
+        flash('Документ успішно проведено (FIFO)!', 'success')
+        
+    except InsufficientStockError as e:
+        # Специфічна помилка залишків
+        db.session.rollback()
+        flash(f'Помилка залишків: {str(e)}', 'error')
+        
+    except PostingError as e:
+        # Загальна помилка логіки (вже проведено, не той тип тощо)
+        db.session.rollback()
+        flash(f'Неможливо провести документ: {str(e)}', 'warning')
+        
+    except Exception as e:
+        # Непередбачена технічна помилка
+        db.session.rollback()
+        flash(f'Системна помилка: {str(e)}', 'error')
+        # Тут можна додати логування помилки
+
+    return redirect(url_for('view_document', doc_id=doc_id))
+
+@app.route('/inventory')
+def inventory_list():
+    # Отримуємо всі залишки. Завдяки lazy="joined" у моделі, 
+    # дані про номенклатуру підтягнуться автоматично.
+    balances = db.session.execute(
+        db.select(InventoryBalance)
+        .join(InventoryBalance.nomenclature) # Явний join для коректного сортування
+        .order_by(Nomenclature.nomenclature_name)
+    ).scalars().all()
+
+    return render_template('inventory_list.html', balances=balances)
+
+
+
+
+
+
+def _handle_document_creation_based_on(source_id, target_type, contract_name_generator, success_message):
+    """
+    Універсальна функція для створення документа на підставі іншого.
+    
+    :param source_id: ID документа-підстави
+    :param target_type: Тип нового документа (напр. 'Видаткова накладна')
+    :param contract_name_generator: Функція (lambda), яка приймає source_doc і повертає рядок 'contract_name'
+    :param success_message: Текст повідомлення про успіх
+    """
+    
+    # 1. Шукаємо документ-підставу
+    source_doc = db.session.execute(
+        db.select(Document)
+        .filter_by(documents_id=source_id)
+        .options(selectinload(Document.lines))
+    ).scalar_one_or_none()
+
+    if not source_doc:
+        abort(404)
+
+    # 2. Завантажуємо довідники (для форми)
+    counterparties = db.session.execute(db.select(Counterparty).order_by(Counterparty.counterparty_name)).scalars().all()
+    nomenclatures = db.session.execute(db.select(Nomenclature).order_by(Nomenclature.nomenclature_name)).scalars().all()
+
+    # 3. Ініціалізація форми
+    form = DocumentForm(request.form)
+    form.counterparty_id.choices = [('', 'Оберіть контрагента')] + [
+        (str(cp.counterparty_id), cp.counterparty_name) for cp in counterparties
+    ]
+
+    # 4. GET: Заповнення форми даними з джерела
+    if request.method == 'GET':
+        form.operation_type.data = target_type
+        form.counterparty_id.data = source_doc.counterparty_id
+        
+        # Очищення та заповнення рядків
+        while len(form.lines) > 0:
+            form.lines.pop_entry()
+            
+        for line in source_doc.lines:
+            form.lines.append_entry({
+                'nomenclature_id': line.nomenclature_id,
+                'quantity': line.quantity,
+                'price_with_vat': line.price_with_vat
+            })
+
+    # 5. POST: Збереження через Service Layer
+    if request.method == 'POST' and form.validate_on_submit():
+        try:
+            # Генеруємо назву договору/підстави динамічно
+            contract_text = contract_name_generator(source_doc)
+            
+            # Викликаємо сервіс для збереження
+            DocumentService.create_document_from_form(
+                form=form,
+                operation_type=target_type,
+                contract_name=contract_text
+            )
+            
+            flash(success_message, 'success')
+            return redirect(url_for('documents_list'))
+            
+        except Exception as e:
+            flash(f"Помилка при збереженні: {str(e)}", 'error')
+
+    return render_template('create_document.html', form=form, nomenclatures=nomenclatures)
+
+
+# --- ВАШІ МАРШРУТИ (ТЕПЕР ВОНИ КОРОТКІ) ---
+
+@app.route('/document/<string:source_id>/create_invoice', methods=['GET', 'POST'])
+def create_invoice_based_on(source_id):
+    return _handle_document_creation_based_on(
+        source_id=source_id,
+        target_type="Рахунок фактура",
+        contract_name_generator=lambda src: f"На підставі {src.operation_type} від {src.document_date.date()}",
+        success_message="Рахунок фактура успішно створений!"
+    )
+
+@app.route('/document/<string:source_id>/create_outgoing', methods=['GET', 'POST'])
+def create_outgoing_based_on(source_id):
+    return _handle_document_creation_based_on(
+        source_id=source_id,
+        target_type="Видаткова накладна",
+        contract_name_generator=lambda src: f"На підставі {src.operation_type} №{src.documents_id[:8]}",
+        success_message="Видаткову накладну успішно створено!"
+    )
+
+@app.route('/document/<string:source_id>/create_tax_invoice', methods=['GET', 'POST'])
+def create_tax_invoice_based_on(source_id):
+    return _handle_document_creation_based_on(
+        source_id=source_id,
+        target_type="Податкова накладна",
+        contract_name_generator=lambda src: f"Податкова накладна до {src.operation_type} №{src.documents_id[:8]}",
+        success_message="Податкову накладну успішно створено!"
+    )
+
+
+
+
+
+@app.route('/reports', methods=['GET', 'POST'])
+def reports():
+    form = ReportForm(request.form)
+    results = []
+    report_type = None
+    total_sum = 0.0
+
+    if request.method == 'POST' and form.validate():
+        start_date = datetime.combine(form.start_date.data, datetime.min.time())
+        end_date = datetime.combine(form.end_date.data, datetime.max.time()) # Кінець дня
+        report_type = form.report_type.data
+
+        # --- 1. ЗВІТ ПРО ПРОДАЖІ ---
+        if report_type == 'sales':
+            # Вибираємо рядки з проведених Видаткових накладних
+            query = db.select(
+                Document.document_date,
+                Document.documents_id,
+                Counterparty.counterparty_name,
+                Nomenclature.nomenclature_name,
+                DocumentLine.quantity,
+                DocumentLine.total_amount # Сума продажу
+            ).join(DocumentLine.document).join(DocumentLine.nomenclature).join(Document.counterparty)\
+             .filter(
+                Document.is_posted == True,
+                Document.operation_type == 'Видаткова накладна',
+                Document.document_date.between(start_date, end_date)
+            ).order_by(Document.document_date)
+            
+            results = db.session.execute(query).all()
+            
+            # Рахуємо загальну суму продажів
+            total_sum = sum(row.total_amount for row in results)
+
+        # --- 2. ЗАЛИШКИ НА ДАТУ (Розрахунковий метод) ---
+        elif report_type == 'inventory_date':
+            # Нам потрібна дата, на кінець якої ми дивимося залишки (беремо end_date з форми)
+            target_date = end_date
+            
+            INCOMING_TYPES = ['Purchase', 'Incoming', 'Прибуткова накладна']
+            OUTGOING_TYPES = ['Sale', 'Outgoing', 'Видаткова накладна']
+
+            # SQL магія: Сумуємо (Прихід) - (Розхід) для кожного товару до вказаної дати
+            query = db.select(
+                Nomenclature.nomenclature_name,
+                func.sum(case(
+                    (Document.operation_type.in_(INCOMING_TYPES), DocumentLine.quantity),
+                    (Document.operation_type.in_(OUTGOING_TYPES), -DocumentLine.quantity),
+                    else_=0
+                )).label('balance_qty'),
+                 func.sum(case(
+                    (Document.operation_type.in_(INCOMING_TYPES), DocumentLine.total_amount), # Тут приблизна оцінка вартості
+                    (Document.operation_type.in_(OUTGOING_TYPES), -DocumentLine.total_amount),
+                    else_=0
+                )).label('balance_sum')
+            ).join(DocumentLine.document).join(DocumentLine.nomenclature)\
+             .filter(
+                Document.is_posted == True,
+                Document.document_date <= target_date
+            ).group_by(Nomenclature.nomenclature_id, Nomenclature.nomenclature_name)
+
+            results = db.session.execute(query).all()
+            
+            # Фільтруємо, щоб не показувати нульові залишки (опціонально)
+            results = [r for r in results if r.balance_qty != 0]
+
+    return render_template('reports.html', form=form, results=results, report_type=report_type, total_sum=total_sum)
+
+@app.route('/document/<string:doc_id>/print')
+def print_document_page(doc_id):
+    # Завантажуємо документ з контрагентом
+    document = db.session.execute(
+        db.select(Document)
+        .filter_by(documents_id=doc_id)
+        .options(selectinload(Document.counterparty))
+    ).scalar_one_or_none()
+
+    if document is None:
+        abort(404) 
+
+    # Завантажуємо рядки
+    lines = db.session.execute(
+        db.select(DocumentLine)
+        .filter_by(document_id=doc_id)
+        .options(selectinload(DocumentLine.nomenclature))
+        .order_by(DocumentLine.product_item_id)
+    ).scalars().all()
+    
+    # Рендеримо спеціальний шаблон для друку
+    return render_template('print_document.html', document=document, lines=lines)

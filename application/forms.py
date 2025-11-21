@@ -22,7 +22,7 @@ class DocumentLineForm(Form):
 
 class DocumentForm(FlaskForm):
     # Список типів (можна винести окремо або залишити тут)
-    DOC_TYPES = ["Замовлення", "Рахунок фактура", "Прибуткова накладна", "Видаткова накладна"]
+    DOC_TYPES = ["Замовлення", "Рахунок фактура", "Прибуткова накладна", "Видаткова накладна","Податкова накладна"]
 
     document_date = DateField('Дата Документа', format='%Y-%m-%d', default=date.today,
                                validators=[DataRequired()])
@@ -41,6 +41,16 @@ class DocumentForm(FlaskForm):
     def validate_lines(form, field):
         if not field.entries:
             raise ValidationError('Документ повинен містити хоча б один рядок.')
+        
+
+class ReportForm(FlaskForm):
+    start_date = DateField('З дати', format='%Y-%m-%d', default=date.today, validators=[DataRequired()])
+    end_date = DateField('По дату', format='%Y-%m-%d', default=date.today, validators=[DataRequired()])
+    report_type = SelectField('Тип звіту', choices=[
+        ('sales', 'Звіт про продажі'),
+        ('inventory_date', 'Залишки на дату'),
+        # ('profit', 'Прибутки') # Реалізуємо пізніше, якщо додамо поле собівартості
+    ])
 
 
         

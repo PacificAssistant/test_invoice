@@ -128,3 +128,17 @@ form {
     min-height: 400px;
     margin-top: 20px;
 }
+
+
+.btn-post {
+    background-color: #28a745;
+    color: white;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 4px;
+    font-size: 16px;
+    cursor: pointer;
+}
+.btn-post:hover {
+    background-color: #218838;
+}

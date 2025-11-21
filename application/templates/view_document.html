@@ -67,6 +67,56 @@
                 </tr>
             </tfoot>
         </table>
+        <div class="actions-panel" style="margin: 20px 0; padding: 15px; background: #f8f9fa; border-radius: 5px; display: flex; justify-content: space-between; align-items: center;">
+    
+            <div style="display: flex; gap: 10px; align-items: center;">
+    
+                {# --- БЛОК 1: КНОПКИ ПРОВЕДЕННЯ (ЛІВА ЧАСТИНА) --- #}
+                
+                {% if document.is_posted %}
+                    <button disabled class="btn btn-secondary" style="cursor: not-allowed;">
+                        🔒 Проведено
+                    </button>
+                {% else %}
+                    {# Кнопка проведення тільки для накладних #}
+                    {% if document.operation_type in ['Прибуткова накладна', 'Видаткова накладна'] %}
+                        <form action="{{ url_for('post_document', doc_id=document.documents_id) }}" method="POST" style="display: inline;">
+                            <button type="submit" class="btn btn-success" 
+                                    onclick="return confirm('Провести документ?')">
+                                ✅ Провести
+                            </button>
+                        </form>
+                    {% endif %}
+                {% endif %}
+
+
+                {# --- БЛОК 2: КНОПКИ "СТВОРИТИ НА ПІДСТАВІ" (ПРАВА ЧАСТИНА) --- #}
+
+                {# А: Замовлення -> Рахунок #}
+                {% if document.operation_type == 'Замовлення' %}
+                    <a href="{{ url_for('create_invoice_based_on', source_id=document.documents_id) }}" 
+                    class="btn btn-primary">
+                    📄 Створити Рахунок
+                    </a>
+
+                {# Б: Рахунок -> Видаткова #}
+                {% elif document.operation_type == 'Рахунок фактура' %}
+                    <a href="{{ url_for('create_outgoing_based_on', source_id=document.documents_id) }}" 
+                    class="btn btn-info text-white">
+                    📦 Створити Видаткову
+                    </a>
+
+                {# В: Видаткова -> Податкова #}
+                {% elif document.operation_type == 'Видаткова накладна' %}
+                    <a href="{{ url_for('create_tax_invoice_based_on', source_id=document.documents_id) }}" 
+                    class="btn btn-warning">
+                    💰 Створити Податкову
+                    </a>
+                    
+                {% endif %}
+
+            </div>
+        </div>
 
         <div style="margin-top: 30px; text-align: center;">
              <a href="{{ url_for('documents_list') }}">Повернутися до списку</a>

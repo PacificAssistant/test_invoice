@@ -1,6 +1,7 @@
 from flask import Flask
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
+from flask_migrate import Migrate
 
 from config import Config
 
@@ -16,5 +17,7 @@ app.config['SECRET_KEY'] = Config.SECRET_KEY
 
 
 db = SQLAlchemy(app, model_class=Base)
+
+migrate = Migrate(app, db)
 
 from application import routes, models
