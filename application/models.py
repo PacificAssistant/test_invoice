@@ -25,7 +25,7 @@ class Counterparty(db.Model):
 class Document(db.Model):
     __tablename__ = 'documents'
     
-    documents_id: Mapped[str] = mapped_column(String, primary_key=True)
+    documents_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     document_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
    
@@ -85,7 +85,7 @@ class DocumentLine(db.Model):
     unit: Mapped[Optional[str]] = mapped_column(String)
     
 
-    document_id: Mapped[str] = mapped_column(
+    document_id: Mapped[int] = mapped_column(
         ForeignKey(Document.documents_id, onupdate='CASCADE', ondelete='RESTRICT'),
         nullable=False
     )

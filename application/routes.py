@@ -61,7 +61,6 @@ def documents_api():
 
 @app.route('/document/new', methods=['GET', 'POST'])
 def create_document():
-    # 1. Завантаження даних для списків
     counterparties_data = db.session.execute(
         db.select(Counterparty).order_by(Counterparty.counterparty_name)
     ).scalars().all()
@@ -70,10 +69,13 @@ def create_document():
         db.select(Nomenclature).order_by(Nomenclature.nomenclature_name)
     ).scalars().all()
 
-    # Створюємо форму та заповнюємо динамічні choices
+    #### Integer для автоінкремента
+    max_id = db.session.query(func.max(Document.documents_id)).scalar()
+    next_id = (max_id or 0) + 1 
+
+
     form = DocumentForm(request.form)
     
-    # Заповнення choices для контрагентів: [(id, name), ...]
     form.counterparty_id.choices = [
         ('', 'Оберіть контрагента')
     ] + [
@@ -83,34 +85,41 @@ def create_document():
 
     if form.validate_on_submit():
         try:
-            doc_id = str(uuid.uuid4())
             
-            # 2. Збір даних із валідованої форми
-            doc_date_data = form.document_date.data # Це вже об'єкт date
+            
+            doc_date_data = form.document_date.data 
             operation_type = form.operation_type.data
             counterparty_id = form.counterparty_id.data
             
-            # Об'єднання дати та поточного часу
             doc_date = datetime.combine(doc_date_data, datetime.now().time())
+            
+            
+            new_document = Document(
+                document_date=doc_date,
+                operation_type=operation_type,
+                currency="UAH",
+                counterparty_id=counterparty_id,
+                total_amount=0 # Потрібно для генерації посилань
+            )
+            db.session.add(new_document)
+            
+            
+            db.session.flush() 
+            generated_id = new_document.documents_id
             
             total_doc_amount_without_vat = 0.0
             
-            # 3. Обробка Рядків Документа
             for line_form in form.lines.entries:
-                
-                # Дані вже перетворені у float завдяки WTForms
-                quantity = line_form.data['quantity']
-                price_with_vat = line_form.data['price_with_vat']
+                quantity = float(line_form.data['quantity'])
+                price_with_vat = float(line_form.data['price_with_vat'])
                 nomenclature_id = line_form.data['nomenclature_id'] 
                 
-                # Розрахунки
                 amounts = DocumentService.calculate_line_amounts(quantity, price_with_vat)
                 total_doc_amount_without_vat += amounts['total_without_vat']
                 
-                # Створення запису DocumentLine 
                 new_line = DocumentLine(
-                    product_item_id=str(uuid.uuid4()),
-                    document_id=doc_id,
+                    product_item_id=str(uuid.uuid4()), 
+                    document_id=generated_id,          
                     nomenclature_id=nomenclature_id,
                     quantity=quantity,
                     unit="шт.", 
@@ -121,39 +130,31 @@ def create_document():
                 )
                 db.session.add(new_line)
             
-            # 4. Створення Заголовка Документа
-            new_document = Document(
-                documents_id=doc_id,
-                document_date=doc_date,
-                operation_type=operation_type,
-                total_amount=round(total_doc_amount_without_vat, 2),
-                currency="UAH",
-                counterparty_id=counterparty_id,
-                
-            )
-            db.session.add(new_document)
+
+            new_document.total_amount = round(total_doc_amount_without_vat, 2)
             
-            # 5. Збереження та Перенаправлення
+
             db.session.commit()
-            print(f'Документ {doc_id} успішно створено!', 'success')
+            print(f'Документ №{generated_id} успішно створено!', 'success')
             return redirect(url_for('documents_list'))
 
         except Exception as e:
             db.session.rollback()
-            print(f"Помилка при збереженні документа. Деталі: {e}", 'error')
+            print(f"Помилка при збереженні документа: {e}", 'error')
+            # Для налагодження
+            raise e 
  
-        
-
+    # Передаємо next_id у шаблон
     return render_template('create_document.html', 
                             form=form, 
-                            nomenclatures=nomenclatures_data) 
+                            nomenclatures=nomenclatures_data,
+                            next_id=next_id)
 
 
     
-@app.route('/document/<string:doc_id>')
+@app.route('/document/<int:doc_id>')
 def view_document(doc_id):
-    # 1. Завантажуємо Заголовок Документа
-    # Використовуємо joinedload для завантаження пов'язаного Контрагента одним запитом
+
     document = db.session.execute(
         db.select(Document)
         .filter_by(documents_id=doc_id)
@@ -163,16 +164,13 @@ def view_document(doc_id):
     if document is None:
         abort(404) 
 
-    # 2. Завантажуємо Рядки Документа (Номенклатуру)
-    # Використовуємо selectinload для завантаження пов'язаної Номенклатури для кожного рядка
     lines = db.session.execute(
         db.select(DocumentLine)
         .filter_by(document_id=doc_id)
         .options(selectinload(DocumentLine.nomenclature))
-        .order_by(DocumentLine.product_item_id) # Сортування за ID рядка
+        .order_by(DocumentLine.product_item_id) 
     ).scalars().all()
     
-    # 3. Передаємо дані в шаблон
     return render_template('view_document.html', document=document, lines=lines)
 
 
@@ -295,7 +293,7 @@ def create_invoice_based_on(source_id):
     return _handle_document_creation_based_on(
         source_id=source_id,
         target_type="Рахунок фактура",
-        contract_name_generator=lambda src: f"На підставі {src.operation_type} від {src.document_date.date()}",
+        contract_name_generator=lambda src: f"На підставі {src.operation_type} №{src.documents_id}",
         success_message="Рахунок фактура успішно створений!"
     )
 
@@ -304,7 +302,7 @@ def create_outgoing_based_on(source_id):
     return _handle_document_creation_based_on(
         source_id=source_id,
         target_type="Видаткова накладна",
-        contract_name_generator=lambda src: f"На підставі {src.operation_type} №{src.documents_id[:8]}",
+        contract_name_generator=lambda src: f"На підставі {src.operation_type} №{src.documents_id}",
         success_message="Видаткову накладну успішно створено!"
     )
 
@@ -313,7 +311,7 @@ def create_tax_invoice_based_on(source_id):
     return _handle_document_creation_based_on(
         source_id=source_id,
         target_type="Податкова накладна",
-        contract_name_generator=lambda src: f"Податкова накладна до {src.operation_type} №{src.documents_id[:8]}",
+        contract_name_generator=lambda src: f"Податкова накладна до {src.operation_type} №{src.documents_id}",
         success_message="Податкову накладну успішно створено!"
     )
 

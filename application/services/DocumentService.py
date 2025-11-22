@@ -26,18 +26,26 @@ class DocumentService:
 
     @staticmethod
     def create_document_from_form(form, operation_type, contract_name):
-        """
-        Створює документ та рядки на основі даних форми.
-        Повертає ID створеного документа.
-        """
         try:
-            new_doc_id = str(uuid.uuid4())
-            # Об'єднуємо дату з форми з поточним часом
+
+            
             doc_date = datetime.combine(form.document_date.data, datetime.now().time())
             
+            new_document = Document(
+                document_date=doc_date,
+                operation_type=operation_type,
+                total_amount=0, 
+                currency="UAH",
+                counterparty_id=form.counterparty_id.data,
+                contract_name=contract_name
+            )
+            db.session.add(new_document)
+            db.session.flush() 
+
+            generated_id = new_document.documents_id
             total_doc_amount_without_vat = 0.0
             
-            # Обробка рядків
+
             for line_form in form.lines.entries:
                 quantity = float(line_form.data['quantity'])
                 price_with_vat = float(line_form.data['price_with_vat'])
@@ -48,7 +56,7 @@ class DocumentService:
                 
                 new_line = DocumentLine(
                     product_item_id=str(uuid.uuid4()),
-                    document_id=new_doc_id,
+                    document_id=generated_id, #  Integer ID
                     nomenclature_id=nomenclature_id,
                     quantity=quantity,
                     unit="шт.", 
@@ -58,21 +66,11 @@ class DocumentService:
                     total_amount=round(amounts['total_without_vat'], 2),
                 )
                 db.session.add(new_line)
-            
-            # Створення заголовка
-            new_document = Document(
-                documents_id=new_doc_id,
-                document_date=doc_date,
-                operation_type=operation_type,
-                total_amount=round(total_doc_amount_without_vat, 2),
-                currency="UAH",
-                counterparty_id=form.counterparty_id.data,
-                contract_name=contract_name
-            )
-            db.session.add(new_document)
+
+            new_document.total_amount = round(total_doc_amount_without_vat, 2)
             db.session.commit()
             
-            return new_doc_id
+            return generated_id
             
         except Exception as e:
             db.session.rollback()
