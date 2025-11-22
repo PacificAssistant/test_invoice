@@ -107,16 +107,13 @@ class DocumentLine(db.Model):
 class InventoryBalance(db.Model):
     __tablename__ = 'inventory_balances'
 
-    # Унікальний ID запису залишку
     balance_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
 
-    # Зв'язок з номенклатурою (обов'язково)
     nomenclature_id: Mapped[str] = mapped_column(
         ForeignKey(Nomenclature.nomenclature_id, onupdate='CASCADE', ondelete='RESTRICT'),
         nullable=False
     )
 
-    # Залишки часто зберігаються в розрізі бухгалтерського рахунку (якщо він у вас є в DocumentLine)
     account: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
     # Кількісний залишок
@@ -125,10 +122,10 @@ class InventoryBalance(db.Model):
     # Сумовий залишок (вартість товару на складі)
     total_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
 
-    # Поле для відстеження останнього оновлення (корисно для аудиту)
+    # Поле для відстеження останнього оновлення 
     last_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, onupdate=datetime.now)
 
-    # Зв'язок (Relationship) для зручного доступу до назви товару
+ 
     nomenclature: Mapped["Nomenclature"] = relationship(lazy="joined")
 
     # Унікальний індекс: один товар на одному рахунку не може мати два рядки залишків

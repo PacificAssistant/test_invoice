@@ -1,4 +1,4 @@
-// application/static/js/scripts.js
+
 
 // 1. Функція додавання рядка (використовується у create_document.html)
 function addLine() {
@@ -95,7 +95,7 @@ document.addEventListener("DOMContentLoaded", function() {
         if(!docId) docId = cell.getData().id;
         
         var viewUrl = "/document/" + docId;
-        // ЗМІНЕНО: Посилання на друк замість редагування
+       
         var printUrl = "/document/" + docId + "/print"; 
         
         return `

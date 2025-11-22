@@ -1,144 +1,162 @@
-
-form { 
-    max-width: 800px; 
-    margin: 0 auto; 
-    padding: 20px; 
-    border: 1px solid #ccc; 
-    border-radius: 5px; 
-}
-.form-group { 
-    margin-bottom: 15px; 
-}
-.form-group label { 
-    display: block; 
-    margin-bottom: 5px; 
-    font-weight: bold; 
-}
-.form-group input, .form-group select, .form-group button { 
-    width: 100%; 
-    padding: 8px; 
-    box-sizing: border-box; 
+/* Глобальні налаштування */
+body {
+    font-family: 'Inter', sans-serif;
+    background-color: #f8f9fa; /* Світло-сірий фон */
+    color: #343a40;
 }
 
-/* Стилі для рядків таблиці */
-.document-lines { 
-    border-top: 2px solid #ddd; 
-    margin-top: 20px; 
-    padding-top: 15px; 
-}
-.line-row { 
-    display: flex; 
-    gap: 10px; 
-    align-items: flex-end; 
-    margin-bottom: 15px; 
-    padding-bottom: 10px;
-    border-bottom: 1px dashed #eee;
-}
-.line-row > div { 
-    flex: 1; 
+/* Анімація появи */
+.fade-in-up {
+    animation: fadeInUp 0.5s ease-out;
 }
 
-/* Стилі повідомлень */
-.error-message { 
-    color: red; 
-    font-weight: bold; 
-    text-align: center; 
-    margin-bottom: 15px; 
+@keyframes fadeInUp {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
 }
 
-/* Кнопка додавання */
-.btn-add {
-    background-color: #007bff;
-    color: white;
+/* Заголовки */
+h1, h2, h3 {
+    font-weight: 600;
+    color: #2c3e50;
+    margin-bottom: 1.5rem;
+}
+
+/* --- Картки та Контейнери --- */
+.card-custom {
+    background: #fff;
     border: none;
-    cursor: pointer;
-    margin-top: 10px;
-}
-.btn-add:hover {
-    background-color: #0056b3;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.05);
+    padding: 2rem;
+    margin-bottom: 2rem;
 }
 
-/* Кнопка видалення (червоний хрестик) */
-.remove-btn-container {
-    flex: 0 0 40px !important; /* Фіксована ширина */
-    display: flex;
-    align-items: flex-end;
+/* --- Таблиці (Tabulator та звичайні) --- */
+.doc-table, .table {
+    background: white;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.02);
 }
-.btn-remove {
-    background-color: #dc3545;
-    color: white;
-    border: none;
-    cursor: pointer;
-    height: 35px;
+
+.doc-table th {
+    background-color: #f1f3f5;
+    font-weight: 600;
+    color: #495057;
+    border-bottom: 2px solid #dee2e6;
+}
+
+.doc-table td, .doc-table th {
+    padding: 12px 15px;
+    vertical-align: middle;
+}
+
+.total-row td {
+    background-color: #e9ecef !important;
     font-weight: bold;
+    font-size: 1.1em;
 }
 
-
-
-/* Стилі специфічні для сторінки перегляду документа */
-.doc-container { 
-    max-width: 900px; 
-    margin: 20px auto; 
-}
-.doc-container h1, .doc-container h2 { 
-    text-align: center; 
-}
-.header-info { 
-    background-color: #f4f4f4; 
-    padding: 15px; 
-    border-radius: 5px; 
-    margin-bottom: 20px; 
-    border: 1px solid #ddd;
-}
-.header-info div { 
-    margin-bottom: 8px; 
-}
-.header-info strong { 
-    display: inline-block; 
-    width: 150px; 
+/* --- Форми --- */
+/* Видаляємо старий стиль form { max-width: 800px ... } */
+form {
+    /* Bootstrap сам впорається з шириною */
 }
 
-/* Стилі таблиці */
-.doc-table { 
-    width: 100%; 
-    border-collapse: collapse; 
-    margin-top: 15px; 
-}
-.doc-table th, .doc-table td { 
-    border: 1px solid #ccc; 
-    padding: 10px; 
-    text-align: left; 
-}
-.doc-table th { 
-    background-color: #e0e0e0; 
-}
-.total-row { 
-    font-weight: bold; 
-    background-color: #fffacd; 
+.form-label {
+    font-weight: 500;
+    color: #495057;
 }
 
-/* Стиль для кнопок навігації */
-.nav-links {
-    text-align: center;
-    margin-bottom: 15px;
+.form-control:focus, .form-select:focus {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.15);
 }
 
-#documents-table {
-    border: 1px solid #ccc; 
-    min-height: 400px;
+/* --- Рядки Документа (Динамічна форма) --- */
+.document-lines {
+    background-color: #fff;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #dee2e6;
     margin-top: 20px;
 }
 
-
-.btn-post {
-    background-color: #28a745;
-    color: white;
-    border: none;
-    padding: 10px 20px;
-    border-radius: 4px;
-    font-size: 16px;
-    cursor: pointer;
+.line-row {
+    display: flex;
+    gap: 15px;
+    align-items: flex-end;
+    padding: 15px;
+    background: #f8f9fa;
+    border-radius: 8px;
+    border: 1px solid #e9ecef;
+    margin-bottom: 15px;
+    transition: background 0.2s;
 }
-.btn-post:hover {
-    background-color: #218838;
+
+.line-row:hover {
+    background: #f1f3f5;
+}
+
+.line-row > div {
+    flex: 1;
+}
+
+/* Кнопка видалення */
+.remove-btn-container {
+    flex: 0 0 auto !important;
+    padding-bottom: 2px;
+}
+
+.btn-remove {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background-color: #fff;
+    color: #dc3545;
+    border: 2px solid #dc3545;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s;
+}
+
+.btn-remove:hover {
+    background-color: #dc3545;
+    color: white;
+}
+
+.btn-add {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 10px 20px;
+    background-color: #e7f1ff;
+    color: #0d6efd;
+    border: none;
+    border-radius: 6px;
+    font-weight: 600;
+    transition: all 0.2s;
+}
+
+.btn-add:hover {
+    background-color: #d0e2ff;
+}
+
+/* Tabulator Style Override (для гармонії з Bootstrap) */
+.tabulator {
+    border: none !important;
+    background-color: transparent !important;
+}
+.tabulator-header {
+    background-color: #f8f9fa !important;
+    border-bottom: 2px solid #dee2e6 !important;
+}
+.tabulator-row {
+    background-color: #fff !important;
+    border-bottom: 1px solid #e9ecef !important;
+}
+.tabulator-row:hover {
+    background-color: #f8f9fa !important;
 }

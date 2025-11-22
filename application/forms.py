@@ -2,7 +2,7 @@ from flask_wtf import FlaskForm
 from wtforms import StringField, SelectField, FloatField, DateField, FieldList, FormField, HiddenField, Form
 from wtforms.validators import DataRequired, InputRequired, NumberRange, ValidationError
 from datetime import date
-from decimal import Decimal # Рекомендується для фінансових розрахунків
+from decimal import Decimal 
 
 # Допоміжний клас форми для одного рядка документа (таблична частина)
 class DocumentLineForm(Form): 
@@ -21,7 +21,7 @@ class DocumentLineForm(Form):
    
 
 class DocumentForm(FlaskForm):
-    # Список типів (можна винести окремо або залишити тут)
+    # Список типів 
     DOC_TYPES = ["Замовлення", "Рахунок фактура", "Прибуткова накладна", "Видаткова накладна","Податкова накладна"]
 
     document_date = DateField('Дата Документа', format='%Y-%m-%d', default=date.today,
@@ -49,7 +49,7 @@ class ReportForm(FlaskForm):
     report_type = SelectField('Тип звіту', choices=[
         ('sales', 'Звіт про продажі'),
         ('inventory_date', 'Залишки на дату'),
-        # ('profit', 'Прибутки') # Реалізуємо пізніше, якщо додамо поле собівартості
+
     ])
 
 

@@ -24,7 +24,7 @@
                     <td>{{ item.account if item.account else '-' }}</td>
                     
                     <td style="text-align: right; font-weight: bold;">
-                        {{ item.quantity }}
+                        {{ '%g'|format(item.quantity) }}
                     </td>
                     <td style="text-align: right;">
                         {{ "%.2f"|format(item.total_amount) }} грн
