@@ -54,7 +54,7 @@ def documents_api():
 
         data.append({
             'id': doc.documents_id,
-            'date': doc.document_date.strftime('%d-%m-%Y %H:%M:%S') if doc.document_date else 'Н/Д',
+            'date': doc.document_date.strftime('%d-%m-%Y ') if doc.document_date else 'Н/Д',
             'type': doc.operation_type,
             'allowed_next': allowed_next,
             'counterparty_name': doc.counterparty.counterparty_name if doc.counterparty else 'Немає',
@@ -188,20 +188,25 @@ def post_document(doc_id):
 
     try:
         posting_service.post_document(doc_id)
-        return jsonify({'status': 'success', 'message': 'Документ успішно проведено (FIFO)!'})
+        
+        flash('Документ успішно проведено (FIFO)!', 'success')
+        
+        return jsonify({'status': 'success'})
         
     except InsufficientStockError as e:
         db.session.rollback()
-        return jsonify({'status': 'error', 'message': f'Помилка залишків: {str(e)}'}), 400
+        flash(f'Помилка залишків: {str(e)}', 'error')
+        return jsonify({'status': 'error', 'message': str(e)})
         
     except PostingError as e:
-
         db.session.rollback()
-        return jsonify({'status': 'error', 'message': str(e)}), 400
+        flash(f'Неможливо провести: {str(e)}', 'warning')
+        return jsonify({'status': 'error', 'message': str(e)})
         
     except Exception as e:
         db.session.rollback()
-        return jsonify({'status': 'error', 'message': f'Системна помилка: {str(e)}'}), 500
+        print(f"Error: {e}")
+        return jsonify({'status': 'error', 'message': 'Системна помилка'})
 
 
 @app.route('/document/new')

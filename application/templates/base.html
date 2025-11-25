@@ -79,13 +79,17 @@
 
     {% with messages = get_flashed_messages(with_categories=true) %}
         {% if messages %}
-            <script>
-                document.addEventListener("DOMContentLoaded", function() {
-                    
-                    const messages = {{ messages | tojson | safe }};
+            <div class="toast-container position-fixed bottom-0 end-0 p-3" id="toastContainer">
+                </div>
 
-                    if (typeof showFlashToasts === 'function') {
-                        showFlashToasts(messages);
+            <script>
+                document.addEventListener('DOMContentLoaded', () => {
+                    // Отримуємо повідомлення від Flask (Python)
+                    const flashMessages = {{ get_flashed_messages(with_categories=true) | tojson }};
+                    
+                    // Якщо є повідомлення, показуємо їх через вашу функцію
+                    if (flashMessages && flashMessages.length > 0) {
+                        showFlashToasts(flashMessages);
                     }
                 });
             </script>

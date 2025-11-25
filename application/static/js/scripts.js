@@ -268,7 +268,8 @@ async function postDocument() {
     const { docId, isNew } = window.documentContext;
 
     if (isNew) {
-        alert("Спочатку збережіть документ!");
+        // Тут можна викликати тост замість алерту, якщо хочете
+        showFlashToasts([['warning', 'Спочатку збережіть документ!']]);
         return;
     }
     
@@ -284,13 +285,17 @@ async function postDocument() {
         const result = await response.json();
         
         if (result.status === 'success') {
-            alert("Успішно проведено!");
+
+
             location.reload(); 
         } else {
-            alert("Помилка проведення: " + result.message);
+            showFlashToasts([['error', "Помилка: " + result.message]]);
+            
+            if (statusSpan) statusSpan.innerText = "";
         }
     } catch (e) {
-        alert("Помилка з'єднання");
+        console.error(e);
+        showFlashToasts([['danger', "Помилка з'єднання"]]);
     }
 }
 
@@ -384,8 +389,8 @@ document.addEventListener("DOMContentLoaded", function() {
                 title: "Дата", 
                 field: "date", 
                 width: 160,
-                sorter: "datetime",
-                sorterParams: { format: "dd-MM-yyyy HH:mm:ss" },
+                sorter: "date",
+                sorterParams: { format: "dd-MM-yyyy" },
                 headerFilter: "input", 
             },
             {title: "Тип Операції", field: "type", sorter: "string"},

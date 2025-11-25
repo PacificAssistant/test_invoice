@@ -26,7 +26,7 @@ class Document(db.Model):
     __tablename__ = 'documents'
     
     documents_id: Mapped[str] = mapped_column(String, primary_key=True)
-    document_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    document_date: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
     
     document_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
    
