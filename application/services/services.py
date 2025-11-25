@@ -10,14 +10,11 @@ from application.models import Document, DocumentLine, InventoryBalance
 from application.services.exceptions import PostingError, InsufficientStockError
 
 
-
-# application/services/services.py
-
 from abc import ABC, abstractmethod
 from application.models import Document, DocumentLine
 from application.services.exceptions import PostingError
 
-# --- Базова Стратегія ---
+
 class BaseDocumentStrategy(ABC):
     def __init__(self, db_session, inventory_manager):
         self.db = db_session
@@ -97,7 +94,7 @@ class TaxInvoiceStrategy(BaseDocumentStrategy):
     def post(self, document: Document):
         pass
 
-# --- Фабрика ---
+
 class DocumentStrategyFactory:
     _STRATEGIES = {
         'Замовлення': OrderStrategy,
@@ -133,12 +130,14 @@ class InventoryManager:
         total = Decimal(str(line.total_amount))
         
         unit_cost = total / qty if qty > 0 else Decimal(0)
+        document_date_only = document.document_date
+        full_batch_datetime = datetime.combine(document_date_only, datetime.now().time())
 
         new_batch = InventoryBalance(
             nomenclature_id=line.nomenclature_id,
             incoming_line_id=line.product_item_id,
             account=line.account,
-            batch_date=document.document_date,
+            batch_date=full_batch_datetime,
             quantity=qty,        
             unit_cost=unit_cost  
         )

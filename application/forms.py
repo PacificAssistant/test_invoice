@@ -51,12 +51,11 @@ class DocumentForm(FlaskForm):
         
 
 class ReportForm(FlaskForm):
-    start_date = DateField('З дати', format='%d-%m-%Y', default=date.today, validators=[DataRequired()])
-    end_date = DateField('По дату', format='%d-%m-%Y', default=date.today, validators=[DataRequired()])
+    start_date = DateField('З дати', format='%Y-%m-%d', default=date.today, validators=[DataRequired()])
+    end_date = DateField('По дату', format='%Y-%m-%d', default=date.today, validators=[DataRequired()])
     report_type = SelectField('Тип звіту', choices=[
         ('sales', 'Звіт про продажі'),
         ('inventory_date', 'Залишки на дату'),
-
     ])
 
 

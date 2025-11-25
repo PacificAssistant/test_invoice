@@ -122,7 +122,7 @@ def save_document_ajax():
             vat_rate = float(row.get('vat_rate', 20.0))
             
             amounts = DocumentService.calculate_line_amounts(qty, price, vat_rate)
-            total_doc_sum += amounts['total_without_vat']
+            total_doc_sum += amounts['total_with_vat']
 
             if line_id and line_id in existing_lines:
 

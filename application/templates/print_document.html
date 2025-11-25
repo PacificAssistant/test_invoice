@@ -112,29 +112,35 @@
             </div>
         </div>
 
-        <table>
+       <table>
             <thead>
                 <tr>
                     <th style="width: 5%;">№</th>
                     <th>Найменування товару (послуги)</th>
                     <th style="width: 10%;">К-ть</th>
                     <th style="width: 10%;">Од.</th>
-                    <th style="width: 15%;">Ціна</th>
-                    <th style="width: 15%;">Сума</th>
+                    <th style="width: 15%;">Ціна (з ПДВ)</th>
+                    <th style="width: 15%;">Сума (з ПДВ)</th>
                 </tr>
             </thead>
             <tbody>
-                {% set totals = namespace(amount=0.0) %}
+                {# Ініціалізуємо змінні для підсумків #}
+                {% set ns = namespace(total_net=0.0, total_vat=0.0, total_gross=0.0) %}
+                
                 {% for line in lines %}
                 <tr>
                     <td class="text-center">{{ loop.index }}</td>
                     <td>{{ line.nomenclature.nomenclature_name }}</td>
                     <td class="text-right">{{ line.quantity }}</td>
-                    <td class="text-center">{{ line.unit or 'шт' }}</td>
-                    <td class="text-right">{{ line.price_with_vat }}</td>
-                    <td class="text-right">{{ line.total_with_vat }}</td>
+                    <td class="text-center">{{ line.unit or 'шт.' }}</td>
+                    <td class="text-right">{{ "%.2f"|format(line.price_with_vat) }}</td>
+                    <td class="text-right">{{ "%.2f"|format(line.total_with_vat) }}</td>
                 </tr>
-                {% set totals.amount = totals.amount + (line.total_with_vat | string | float) %}
+
+                {# Сумуємо дані з бази даних, а не перераховуємо заново #}
+                {% set ns.total_net = ns.total_net + (line.total_amount | float) %}
+                {% set ns.total_vat = ns.total_vat + (line.vat_amount | float) %}
+                {% set ns.total_gross = ns.total_gross + (line.total_with_vat | float) %}
                 {% endfor %}
             </tbody>
         </table>
@@ -142,15 +148,18 @@
         <div class="totals">
             <div class="totals-row">
                 <span>Сума без ПДВ:</span>
-                <span>{{ "%.2f"|format(totals.amount / 1.2) }} грн</span>
+                {# Виводимо накопичену чисту суму #}
+                <span>{{ "%.2f"|format(ns.total_net) }} грн</span>
             </div>
             <div class="totals-row">
                 <span>ПДВ (20%):</span>
-                <span>{{ "%.2f"|format(totals.amount - (totals.amount / 1.2)) }} грн</span>
+                {# Виводимо накопичений ПДВ #}
+                <span>{{ "%.2f"|format(ns.total_vat) }} грн</span>
             </div>
             <div class="totals-row main">
                 <span>Всього до сплати:</span>
-                <span>{{ "%.2f"|format(totals.amount) }} грн</span>
+                {# Виводимо загальну суму #}
+                <span>{{ "%.2f"|format(ns.total_gross) }} грн</span>
             </div>
         </div>
 

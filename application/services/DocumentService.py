@@ -25,7 +25,7 @@ class DocumentService:
             return None
 
     @staticmethod
-    def calculate_line_amounts(quantity, price_with_vat, vat_rate_percent=20.0):
+    def calculate_line_amounts(quantity, price_without_vat, vat_rate_percent=20.0):
         """
         Розрахунок сум рядка (ПДВ, без ПДВ тощо).
         """
@@ -36,7 +36,7 @@ class DocumentService:
         vat_multiplier = 1 + vat_coefficient
         
         # Захист від ділення на нуль, якщо ціна 0
-        price_without_vat = price_with_vat * vat_multiplier if vat_multiplier else price_with_vat
+        price_with_vat = price_without_vat * vat_multiplier if vat_multiplier else price_with_vat
         total_with_vat = quantity * price_with_vat
         total_without_vat = quantity * price_without_vat
         vat_amount = total_with_vat - total_without_vat

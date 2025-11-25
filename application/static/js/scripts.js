@@ -317,7 +317,8 @@ function addRow(data = null) {
     const qty = data ? data.qty : 1;
     const price = data ? data.price : 0;
     const vat = data ? data.vat : 20;
-    const sum = (qty * price).toFixed(2);
+    const priceWithVat = price * (1 + vat / 100);
+    const sum = (qty * priceWithVat).toFixed(2);
 
     tr.innerHTML = `
         <td>
