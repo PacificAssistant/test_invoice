@@ -12,7 +12,9 @@
     
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     
-    {% block head %}{% endblock %}
+    {% block head %}
+        <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+    {% endblock %}
 </head>
 <body class="d-flex flex-column h-100 bg-light">
 
@@ -45,7 +47,7 @@
                         </li>
                     </ul>
                     <div class="d-flex">
-                        <a href="{{ url_for('create_document') }}" class="btn btn-primary btn-sm">
+                        <a href="{{ url_for('document_card') }}" class="btn btn-primary btn-sm">
                             <i class="bi bi-plus-lg"></i> Створити
                         </a>
                     </div>

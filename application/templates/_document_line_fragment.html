@@ -1,0 +1,40 @@
+<div class="line-row" data-line-index="{{ index }}" style="display: flex; gap: 10px; align-items: flex-end; margin-bottom: 10px;">
+    
+    <div style="flex-grow: 2;">
+        <label for="lines-{{ index }}-nomenclature_id">Номенклатура</label>
+        <select id="lines-{{ index }}-nomenclature_id" 
+                name="lines-{{ index }}-nomenclature_id" 
+                class="form-control"
+                onchange="updateVatRate(this)" 
+                required>
+            <option value="">Оберіть товар</option>
+            {% for item in nomenclatures %}
+                <option value="{{ item.nomenclature_id }}" data-vat-rate="{{ item.vat_rate or 20 }}">
+                    {{ item.nomenclature_name }}
+                </option>
+            {% endfor %}
+        </select>
+    </div>
+
+    <div style="width: 100px;">
+        <label for="lines-{{ index }}-quantity">Кількість</label>
+        <input type="number" id="lines-{{ index }}-quantity" name="lines-{{ index }}-quantity" 
+               class="form-control" value="1" min="0.01" step="any" required>
+    </div>
+
+    <div style="width: 80px;">
+        <label for="lines-{{ index }}-vat_rate">ПДВ %</label>
+        <input type="number" id="lines-{{ index }}-vat_rate" name="lines-{{ index }}-vat_rate" 
+               class="form-control" value="20" min="0" step="1" required>
+    </div>
+
+    <div style="width: 120px;">
+        <label for="lines-{{ index }}-price_with_vat">Ціна (з ПДВ)</label>
+        <input type="number" id="lines-{{ index }}-price_with_vat" name="lines-{{ index }}-price_with_vat" 
+               class="form-control" value="0.00" min="0.01" step="0.01" required>
+    </div>
+    
+    <div class="remove-btn-container">
+        <button type="button" class="btn btn-danger btn-sm" onclick="removeLine(this)">X</button>
+    </div>
+</div>

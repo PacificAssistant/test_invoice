@@ -3,42 +3,62 @@
 {% block title %}Залишки на складі{% endblock %}
 
 {% block content %}
-    <div style="text-align: center; margin-bottom: 20px;">
-        <h1>Поточні залишки на складі</h1>
-    </div>
-
-    <div style="overflow-x: auto;">
-        <table class="doc-table"> <thead>
+    <div class="card-custom fade-in-up">
+    <h3>Залишки на складі (по партіях)</h3>
+    
+    <div class="table-responsive">
+        <table class="table table-hover align-middle">
+            <thead>
                 <tr>
                     <th>Номенклатура</th>
-                    <th>Рахунок</th>
-                    <th style="text-align: right;">Кількість</th>
-                    <th style="text-align: right;">Вартість (заг.)</th>
-                    <th style="text-align: right;">Дата оновлення</th>
+                    <th>Дата партії (Прихід)</th>
+                    <th class="text-end">Кількість</th>
+                    <th class="text-end">Собівартість (од.)</th>
+                    <th class="text-end">Загальна вартість</th>
                 </tr>
             </thead>
             <tbody>
-                {% for item in balances %}
-                <tr>
-                    <td>{{ item.nomenclature.nomenclature_name }}</td>
-                    <td>{{ item.account if item.account else '-' }}</td>
-                    
-                    <td style="text-align: right; font-weight: bold;">
-                        {{ '%g'|format(item.quantity) }}
-                    </td>
-                    <td style="text-align: right;">
-                        {{ "%.2f"|format(item.total_amount) }} грн
-                    </td>
-                    <td style="text-align: right; font-size: 0.9em; color: #666;">
-                        {{ item.last_updated.strftime('%Y-%m-%d %H:%M') }}
-                    </td>
-                </tr>
+                {% set ns = namespace(grand_total=0) %}
+                
+                {% for balance in balances %}
+                    {# Розрахунок суми рядка #}
+                    {% set row_sum = balance.quantity * balance.unit_cost %}
+                    {# Додавання до загального підсумку #}
+                    {% set ns.grand_total = ns.grand_total + row_sum %}
+
+                    <tr>
+                        <td>
+                            <strong>{{ balance.nomenclature.nomenclature_name }}</strong>
+                            <br>
+                            <small class="text-muted">ID партії: {{ balance.balance_id }}</small>
+                        </td>
+                        <td>
+                            {{ balance.batch_date.strftime('%d-%m-%Y %H:%M') }}
+                        </td>
+                        <td class="text-end">
+                            {{ "{:.3f}".format(balance.quantity) }}
+                        </td>
+                        <td class="text-end">
+                            {{ "{:.2f}".format(balance.unit_cost) }} ₴
+                        </td>
+                        <td class="text-end fw-bold">
+                            {{ "{:.2f}".format(row_sum) }} ₴
+                        </td>
+                    </tr>
                 {% else %}
-                <tr>
-                    <td colspan="5" style="text-align: center;">Склад порожній</td>
-                </tr>
+                    <tr>
+                        <td colspan="5" class="text-center text-muted p-4">Склад порожній</td>
+                    </tr>
                 {% endfor %}
+                
+                {% if balances %}
+                <tr class="table-secondary total-row">
+                    <td colspan="4" class="text-end">Всього по складу:</td>
+                    <td class="text-end">{{ "{:.2f}".format(ns.grand_total) }} ₴</td>
+                </tr>
+                {% endif %}
             </tbody>
         </table>
     </div>
+</div>
 {% endblock %}

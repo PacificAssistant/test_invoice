@@ -3,28 +3,35 @@ from wtforms import StringField, SelectField, FloatField, DateField, FieldList, 
 from wtforms.validators import DataRequired, InputRequired, NumberRange, ValidationError
 from datetime import date
 from decimal import Decimal 
+from dataclasses import dataclass
 
-# Допоміжний клас форми для одного рядка документа (таблична частина)
+
 class DocumentLineForm(Form): 
-    # ... (поля залишаються без змін)
+
     nomenclature_id = HiddenField('Номенклатура ID', validators=[DataRequired()])
     
     quantity = FloatField('Кількість', validators=[
         InputRequired(), 
         NumberRange(min=0.001, message='Кількість має бути більше 0.')
     ])
+    vat_rate = FloatField('ПДВ %', default=20.0, validators=[
+        InputRequired(),
+        NumberRange(min=0, max=100, message='ПДВ має бути від 0% до 100%')
+    ])
+
     price_with_vat = FloatField('Ціна з ПДВ', validators=[
         InputRequired(), 
-        NumberRange(min=0.01, message='Ціна має бути більше 0.')
+        NumberRange(min=0.01)
     ])
     
-   
+
+
 
 class DocumentForm(FlaskForm):
     # Список типів 
     DOC_TYPES = ["Замовлення", "Рахунок фактура", "Прибуткова накладна", "Видаткова накладна","Податкова накладна"]
 
-    document_date = DateField('Дата Документа', format='%Y-%m-%d', default=date.today,
+    document_date = DateField('Дата Документа', format='%d-%m-%Y', default=date.today,
                                validators=[DataRequired()])
     
     operation_type = SelectField(
@@ -44,8 +51,8 @@ class DocumentForm(FlaskForm):
         
 
 class ReportForm(FlaskForm):
-    start_date = DateField('З дати', format='%Y-%m-%d', default=date.today, validators=[DataRequired()])
-    end_date = DateField('По дату', format='%Y-%m-%d', default=date.today, validators=[DataRequired()])
+    start_date = DateField('З дати', format='%d-%m-%Y', default=date.today, validators=[DataRequired()])
+    end_date = DateField('По дату', format='%d-%m-%Y', default=date.today, validators=[DataRequired()])
     report_type = SelectField('Тип звіту', choices=[
         ('sales', 'Звіт про продажі'),
         ('inventory_date', 'Залишки на дату'),

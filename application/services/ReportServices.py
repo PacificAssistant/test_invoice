@@ -10,11 +10,11 @@ class ReportService:
         """Звіт про продажі: показує виручку."""
         query = select(
             Document.document_date,
-            Document.documents_id,
+            Document.document_number,
             Counterparty.counterparty_name,
             Nomenclature.nomenclature_name,
             DocumentLine.quantity,
-            DocumentLine.total_amount  # Тут це ціна продажу (Виручка)
+            DocumentLine.total_amount
         ).join(DocumentLine.document)\
          .join(DocumentLine.nomenclature)\
          .join(Document.counterparty)\
@@ -29,7 +29,6 @@ class ReportService:
     def get_inventory_on_date(self, target_date):
         """
         Залишки на дату (Розрахунковий метод).
-        УВАГА: Для коректної суми треба використовувати собівартість (total_cost) для списань.
         """
         INCOMING = ['Purchase', 'Incoming', 'Прибуткова накладна']
         OUTGOING = ['Sale', 'Outgoing', 'Видаткова накладна']

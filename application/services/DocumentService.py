@@ -1,18 +1,42 @@
-# application/services.py
+
 import uuid
 from datetime import datetime
 from application import db
 from application.models import Document, DocumentLine
+from application.services.services import SequenceConfig
+from sqlalchemy import text
 
 class DocumentService:
     
     @staticmethod
-    def calculate_line_amounts(quantity, price_with_vat):
-        """Розрахунок сум (ПДВ, без ПДВ) для одного рядка."""
-        VAT_RATE = 0.20
-        VAT_MULTIPLIER = 1 + VAT_RATE
+    def get_next_number(operation_type):
+        """
+        Генерує наступний номер документа на основі типу операції
+        використовуючи SQL Sequence defined in SequenceConfig.
+        """
+        sequence_name = SequenceConfig.get_sequence_name(operation_type)
+        try:
+            # Виконуємо запит до Sequence
+            result = db.session.execute(text(f"SELECT nextval('{sequence_name}')"))
+            next_number = result.scalar_one()
+            return next_number
+        except Exception as e:
+            print(f"Error generating sequence for {operation_type}: {e}")
+            return None
+
+    @staticmethod
+    def calculate_line_amounts(quantity, price_with_vat, vat_rate_percent=20.0):
+        """
+        Розрахунок сум рядка (ПДВ, без ПДВ тощо).
+        """
+        if not vat_rate_percent:
+            vat_rate_percent = 0.0
+            
+        vat_coefficient = float(vat_rate_percent) / 100.0
+        vat_multiplier = 1 + vat_coefficient
         
-        price_without_vat = price_with_vat / VAT_MULTIPLIER
+        # Захист від ділення на нуль, якщо ціна 0
+        price_without_vat = price_with_vat * vat_multiplier if vat_multiplier else price_with_vat
         total_with_vat = quantity * price_with_vat
         total_without_vat = quantity * price_without_vat
         vat_amount = total_with_vat - total_without_vat
@@ -24,54 +48,3 @@ class DocumentService:
             'vat_amount': vat_amount,
         }
 
-    @staticmethod
-    def create_document_from_form(form, operation_type, contract_name):
-        try:
-
-            
-            doc_date = datetime.combine(form.document_date.data, datetime.now().time())
-            
-            new_document = Document(
-                document_date=doc_date,
-                operation_type=operation_type,
-                total_amount=0, 
-                currency="UAH",
-                counterparty_id=form.counterparty_id.data,
-                contract_name=contract_name
-            )
-            db.session.add(new_document)
-            db.session.flush() 
-
-            generated_id = new_document.documents_id
-            total_doc_amount_without_vat = 0.0
-            
-
-            for line_form in form.lines.entries:
-                quantity = float(line_form.data['quantity'])
-                price_with_vat = float(line_form.data['price_with_vat'])
-                nomenclature_id = line_form.data['nomenclature_id']
-                
-                amounts = DocumentService.calculate_line_amounts(quantity, price_with_vat)
-                total_doc_amount_without_vat += amounts['total_without_vat']
-                
-                new_line = DocumentLine(
-                    product_item_id=str(uuid.uuid4()),
-                    document_id=generated_id, #  Integer ID
-                    nomenclature_id=nomenclature_id,
-                    quantity=quantity,
-                    unit="шт.", 
-                    price_with_vat=round(price_with_vat, 2),
-                    total_with_vat=round(amounts['total_with_vat'], 2),
-                    vat_amount=round(amounts['vat_amount'], 2), 
-                    total_amount=round(amounts['total_without_vat'], 2),
-                )
-                db.session.add(new_line)
-
-            new_document.total_amount = round(total_doc_amount_without_vat, 2)
-            db.session.commit()
-            
-            return generated_id
-            
-        except Exception as e:
-            db.session.rollback()
-            raise e

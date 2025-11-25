@@ -25,9 +25,10 @@ class Counterparty(db.Model):
 class Document(db.Model):
     __tablename__ = 'documents'
     
-    documents_id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    documents_id: Mapped[str] = mapped_column(String, primary_key=True)
     document_date: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
     
+    document_number: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
    
     operation_type: Mapped[Optional[str]] = mapped_column(String)
     total_amount: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
@@ -77,7 +78,10 @@ class DocumentLine(db.Model):
     quantity: Mapped[Optional[float]] = mapped_column(Numeric(12))
     price_with_vat: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
     total_with_vat: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    
     vat_amount: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
+    vat_rate: Mapped[float] = mapped_column(Numeric(5, 2), default=20.0)
+
     total_amount: Mapped[Optional[float]] = mapped_column(Numeric(12, 2))
     total_cost: Mapped[Optional[float]] = mapped_column(Numeric(12, 2), default=0)
 
@@ -94,7 +98,7 @@ class DocumentLine(db.Model):
         nullable=False
     )
     
-
+    is_deleted: Mapped[bool] = mapped_column(Boolean, default=False, nullable=False)
     document: Mapped["Document"] = relationship(back_populates="lines")
     nomenclature: Mapped["Nomenclature"] = relationship(back_populates="document_lines")
 
@@ -102,6 +106,7 @@ class DocumentLine(db.Model):
     def __repr__(self):
         return f'<DocumentLine {self.product_item_id}>'
     
+
 
 
 class InventoryBalance(db.Model):
@@ -114,25 +119,34 @@ class InventoryBalance(db.Model):
         nullable=False
     )
 
+    incoming_line_id: Mapped[Optional[str]] = mapped_column(
+        ForeignKey(DocumentLine.product_item_id, onupdate='CASCADE', ondelete='RESTRICT'),
+        nullable=True
+    )
+
     account: Mapped[Optional[str]] = mapped_column(String, nullable=True)
 
-    # Кількісний залишок
+    # Дата створення партії (для сортування FIFO)
+    batch_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, index=True)
+
+    # Кількість, яка ЗАЛИШИЛАСЯ саме від цієї партії
     quantity: Mapped[float] = mapped_column(Numeric(12, 3), default=0)
 
-    # Сумовий залишок (вартість товару на складі)
-    total_amount: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
+    # Ціна за одиницю в цій партії (собівартість)
+    # Зберігаємо ціну, а не суму, щоб уникнути помилок округлення при частковому списанні
+    unit_cost: Mapped[float] = mapped_column(Numeric(12, 2), default=0)
 
-    # Поле для відстеження останнього оновлення 
-    last_updated: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.now, onupdate=datetime.now)
+    # Зв'язки
+    nomenclature: Mapped["Nomenclature"] = relationship(lazy="selectin")
+    
+    # Можна додати зв'язок з рядком приходу, якщо потрібно
+    incoming_line: Mapped["DocumentLine"] = relationship(foreign_keys=[incoming_line_id], lazy="select")
 
- 
-    nomenclature: Mapped["Nomenclature"] = relationship(lazy="joined")
-
-    # Унікальний індекс: один товар на одному рахунку не може мати два рядки залишків
+    # Унікальність "товар + рахунок" прибираємо, бо тепер у нас може бути 10 записів одного товару з різними датами (різні партії).
     __table_args__ = (
-        db.UniqueConstraint('nomenclature_id', 'account', name='uix_nomenclature_account'),
+        db.Index('idx_fifo_sort', 'nomenclature_id', 'batch_date'),
     )
 
     def __repr__(self):
-        return f'<Balance {self.nomenclature.nomenclature_name}: {self.quantity}>'
+        return f'<Batch {self.nomenclature.nomenclature_name} from {self.batch_date}: {self.quantity} pcs @ {self.unit_cost}>'
 

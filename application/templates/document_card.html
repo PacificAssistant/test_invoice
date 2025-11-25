@@ -1,0 +1,161 @@
+{% extends "base.html" %}
+
+{% block content %}
+<style>
+    /* Стилізація під "Desktop App" */
+    .toolbar {
+        background-color: #f8f9fa;
+        padding: 10px;
+        border-bottom: 1px solid #ddd;
+        margin-bottom: 15px;
+    }
+    .doc-header {
+        background-color: #fffbe6; /* Світло-жовтий, як в 1С */
+        padding: 15px;
+        border: 1px solid #ddd;
+        margin-bottom: 15px;
+    }
+    .table-input {
+        width: 100%;
+        border: none;
+        background: transparent;
+    }
+    .table-input:focus {
+        outline: 2px solid #80bdff;
+        background: white;
+    }
+</style>
+
+<div class="container-fluid">
+    
+    <div class="toolbar d-flex gap-2">
+        <button id="btnSave" class="btn btn-primary btn-sm" onclick="saveDocument()">
+            <i class="bi bi-floppy"></i> Записати
+        </button>
+        
+        {% if doc_id != 'new' and can_be_posted %}
+        <button class="btn btn-success btn-sm" onclick="postDocument()" id="btnPost">
+            <i class="bi bi-check-lg"></i> Провести
+        </button>
+        {% endif %}
+        
+        {% if doc_id != 'new' and available_action %}
+        <div class="dropdown">
+            <button class="btn btn-warning btn-sm dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false">
+                <i class="bi bi-diagram-3"></i> Створити на підставі
+            </button>
+            <ul class="dropdown-menu shadow">
+                <li>
+                    <a class="dropdown-item" href="{{ available_action.url }}">
+                        <i class="bi bi-file-earmark-plus"></i> {{ available_action.label }}
+                    </a>
+                </li>
+            </ul>
+        </div>
+        {% endif %}
+
+        {% if doc_id != 'new' %}
+        <div class="vr mx-1"></div>
+        <a href="{{ url_for('print_document_page', doc_id=doc_id) }}" target="_blank" class="btn btn-outline-secondary btn-sm">
+            <i class="bi bi-printer"></i> Друк
+        </a>
+        {% endif %}
+
+        <span id="statusMessage" class="ms-auto text-muted align-self-center"></span>
+    </div>
+
+    <div class="doc-header">
+        <div class="row g-3">
+            <div class="col-md-2">
+                <label class="form-label small text-muted">Номер</label>
+                <input type="text" class="form-control form-control-sm fw-bold" id="docNumber" 
+                       value="{{ document.document_number if document else next_id }}" readonly>
+            </div>
+            
+            <div class="col-md-2">
+                <label class="form-label small text-muted">Дата</label>
+                <input type="date" class="form-control form-control-sm" id="docDate" 
+                       value="{{ document.document_date.strftime('%Y-%m-%d') if document else today_date }}">
+            </div>
+
+            <div class="col-md-3">
+                <label class="form-label small text-muted">Тип операції</label>
+                <select class="form-select form-select-sm" id="opType">
+                    {% for type in doc_types %}
+                        <option value="{{ type }}" {% if document and document.operation_type == type %}selected{% endif %}>
+                            {{ type }}
+                        </option>
+                    {% endfor %}
+                </select>
+            </div>
+
+            <div class="col-md-5">
+                <label class="form-label small text-muted">Контрагент</label>
+                <select class="form-select form-select-sm" id="counterparty">
+                    <option value="">-- Оберіть --</option>
+                    
+                    {% for cp in counterparties %}
+                        <option value="{{ cp.counterparty_id }}" 
+                            {% if document and document.counterparty_id|string == cp.counterparty_id|string %}selected{% endif %}>
+                            {{ cp.counterparty_name }}
+                        </option>
+                    {% endfor %}
+                    </select>
+            </div>
+        </div>
+    </div>
+
+    <div class="card">
+        <div class="card-header py-1">
+            <button class="btn btn-sm btn-outline-primary" onclick="addRow()">
+                <i class="fa fa-plus"></i> Додати рядок
+            </button>
+        </div>
+        <div class="card-body p-0">
+            <table class="table table-bordered table-hover table-sm mb-0" id="linesTable">
+                <thead class="table-light">
+                    <tr>
+                        <th width="35%">Номенклатура</th>
+                        <th width="10%">К-сть</th>
+                        <th width="10%">ПДВ %</th> <th width="15%">Ціна (без ПДВ)</th>
+                        <th width="20%">Сума</th>
+                        <th width="5%">Дія</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    </tbody>
+                <tfoot class="table-light">
+                    <tr>
+                        <td colspan="3" class="text-end fw-bold">Всього:</td>
+                        <td colspan="2" class="fw-bold" id="totalSum">0.00</td>
+                    </tr>
+                </tfoot>
+            </table>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.documentContext = {
+        docId: "{{ doc_id }}",
+        isNew: "{{ doc_id }}" === 'new',
+        docNum: "{{ document.document_number if document else '' }}", 
+        nomenclatures: [
+            {% for n in nomenclatures %}
+                { id: "{{ n.nomenclature_id }}", name: "{{ n.nomenclature_name }}" },
+            {% endfor %}
+        ],
+        existingLines: [
+            {% for line in lines %}
+                {
+                    nom_id: "{{ line.nomenclature_id }}",
+                    qty: {{ line.quantity }},
+                    price: {{ line.price_with_vat }},
+                    vat: {{ line.vat_rate }} ,
+                    product_item_id: "{{ line.product_item_id }}"
+                },
+            {% endfor %}
+        ]
+    };
+</script>
+{% endblock %}

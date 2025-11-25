@@ -2,8 +2,7 @@
 <html lang="uk">
 <head>
     <meta charset="UTF-8">
-    <title>Друк: {{ document.operation_type }} №{{ document.documents_id[:8] }}</title>
-    <style>
+    <title>Друк: {{ document.operation_type }} №{{ document.document_number }}</title>    <style>
         /* Основні стилі для А4 */
         body {
             font-family: "Times New Roman", Times, serif;
@@ -89,7 +88,7 @@
     </div>
 
     <div class="page-container">
-        <h1>{{ document.operation_type }} № {{ document.documents_id[:8] }}</h1>
+        <h1>{{ strategy.title }} № {{ document.document_number }}</h1>
         <div style="text-align: center; margin-bottom: 20px;">
             від {{ document.document_date.strftime('%d.%m.%Y') }} року
         </div>
@@ -164,7 +163,5 @@
             </div>
         </div>
     </div>
-
-
 </body>
 </html>

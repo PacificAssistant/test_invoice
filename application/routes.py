@@ -1,6 +1,6 @@
 from application.models import Document, Counterparty, Nomenclature, DocumentLine
 from flask import render_template, url_for, redirect , jsonify, request, abort, flash
-from sqlalchemy import func, case, and_
+from sqlalchemy import func, case, and_ ,text
 from sqlalchemy.orm import selectinload
 from datetime import date, datetime
 from decimal import Decimal
@@ -9,11 +9,12 @@ import uuid
 
 from application import app,db
 from application.models import Document, Counterparty , InventoryBalance
-from application.forms import  DocumentForm, ReportForm
+from application.forms import  DocumentForm, ReportForm , DocumentLineForm
 from application.services.DocumentService import DocumentService
 from application.services.services import DocumentPostingService
 from application.services.exceptions import PostingError, InsufficientStockError
 from application.services.ReportServices import ReportService
+from application.services.services import DocumentStrategyFactory, InventoryManager, SequenceConfig
 
 
 
@@ -40,281 +41,304 @@ def documents_api():
         .order_by(Document.document_date.desc(), Document.documents_id.desc())
     ).scalars().all()
     
+    im = InventoryManager(db.session)
 
     data = []
+
     for doc in documents:
+        try:
+            strategy = DocumentStrategyFactory.get_strategy(doc.operation_type, db.session, im)
+            allowed_next = strategy.get_allowed_based_on() 
+        except:
+            allowed_next = []
+
         data.append({
             'id': doc.documents_id,
-            'date': doc.document_date.strftime('%Y-%m-%d %H:%M:%S') if doc.document_date else 'Н/Д',
+            'date': doc.document_date.strftime('%d-%m-%Y %H:%M:%S') if doc.document_date else 'Н/Д',
             'type': doc.operation_type,
+            'allowed_next': allowed_next,
             'counterparty_name': doc.counterparty.counterparty_name if doc.counterparty else 'Немає',
             'amount': doc.total_amount,
             'currency': doc.currency,
-            'actions': doc.documents_id # Потрібно для генерації посилань
+            'actions': doc.documents_id,
+            "number":doc.document_number
         })
         
     return jsonify(data)
 
 
-
-
-
-@app.route('/document/new', methods=['GET', 'POST'])
-def create_document():
-    counterparties_data = db.session.execute(
-        db.select(Counterparty).order_by(Counterparty.counterparty_name)
-    ).scalars().all()
     
-    nomenclatures_data = db.session.execute(
-        db.select(Nomenclature).order_by(Nomenclature.nomenclature_name)
-    ).scalars().all()
-
-    #### Integer для автоінкремента
-    max_id = db.session.query(func.max(Document.documents_id)).scalar()
-    next_id = (max_id or 0) + 1 
 
 
-    form = DocumentForm(request.form)
+@app.route('/api/document/save', methods=['POST'])
+def save_document_ajax():
+    data = request.json
     
-    form.counterparty_id.choices = [
-        ('', 'Оберіть контрагента')
-    ] + [
-        (str(cp.counterparty_id), cp.counterparty_name) 
-        for cp in counterparties_data
-    ]
+    try:
+        doc_id = data.get('doc_id')
+        is_new = data.get('is_new')
+        op_type = data['operation_type'] 
+        
+        if is_new:
+            document = Document()
+            document.documents_id = str(uuid.uuid4())
+            
 
-    if form.validate_on_submit():
-        try:
+            next_number = DocumentService.get_next_number(op_type)
+            document.document_number = next_number 
             
+            document.operation_type = op_type
+            db.session.add(document)
+        else:
+            document = db.session.get(Document, doc_id)
+            if not document:
+                return jsonify({'status': 'error', 'message': 'Документ не знайдено'}), 404
+
+
+        doc_date = datetime.strptime(data['date'], '%Y-%m-%d')
+
+        current_time = datetime.now().time()
+        if not is_new and document.document_date:
+             current_time = document.document_date.time()
+             
+        document.document_date = datetime.combine(doc_date.date(), current_time)
+        
+        document.operation_type = data['operation_type']
+        document.counterparty_id = data.get('counterparty_id') or None
+        document.currency = 'UAH'
+        
+
+
+        db.session.flush() 
+        existing_lines = {line.product_item_id: line for line in document.lines}
+        processed_ids = []
+        total_doc_sum = 0
+        
+        for row in data['lines']:
+            line_id = row.get('line_id')
+            qty = float(row['quantity'])
+            price = float(row['price']) 
+            nom_id = row['nomenclature_id']
+            vat_rate = float(row.get('vat_rate', 20.0))
             
-            doc_date_data = form.document_date.data 
-            operation_type = form.operation_type.data
-            counterparty_id = form.counterparty_id.data
-            
-            doc_date = datetime.combine(doc_date_data, datetime.now().time())
-            
-            
-            new_document = Document(
-                document_date=doc_date,
-                operation_type=operation_type,
-                currency="UAH",
-                counterparty_id=counterparty_id,
-                total_amount=0 # Потрібно для генерації посилань
-            )
-            db.session.add(new_document)
-            
-            
-            db.session.flush() 
-            generated_id = new_document.documents_id
-            
-            total_doc_amount_without_vat = 0.0
-            
-            for line_form in form.lines.entries:
-                quantity = float(line_form.data['quantity'])
-                price_with_vat = float(line_form.data['price_with_vat'])
-                nomenclature_id = line_form.data['nomenclature_id'] 
+            amounts = DocumentService.calculate_line_amounts(qty, price, vat_rate)
+            total_doc_sum += amounts['total_without_vat']
+
+            if line_id and line_id in existing_lines:
+
+                line = existing_lines[line_id]
+
+                line.is_deleted = False
+
+                line.nomenclature_id = nom_id
+                line.quantity = qty
+                line.price_with_vat = price
+                line.vat_rate = vat_rate
+                line.total_with_vat = amounts['total_with_vat']
+                line.vat_amount = amounts['vat_amount']
+                line.total_amount = amounts['total_without_vat']
                 
-                amounts = DocumentService.calculate_line_amounts(quantity, price_with_vat)
-                total_doc_amount_without_vat += amounts['total_without_vat']
-                
+                processed_ids.append(line_id)
+            else:
+
+                new_line_id = str(uuid.uuid4())
                 new_line = DocumentLine(
-                    product_item_id=str(uuid.uuid4()), 
-                    document_id=generated_id,          
-                    nomenclature_id=nomenclature_id,
-                    quantity=quantity,
-                    unit="шт.", 
-                    price_with_vat=round(price_with_vat, 2),
-                    total_with_vat=round(amounts['total_with_vat'], 2),
-                    vat_amount=round(amounts['vat_amount'], 2),
-                    total_amount=round(amounts['total_without_vat'], 2),
+                    product_item_id=new_line_id,
+                    document_id=document.documents_id,
+                    nomenclature_id=nom_id,
+                    quantity=qty,
+                    price_with_vat=price,
+                    vat_rate=vat_rate,
+                    total_with_vat=amounts['total_with_vat'],
+                    vat_amount=amounts['vat_amount'],
+                    total_amount=amounts['total_without_vat'],
+                    unit="шт."
                 )
                 db.session.add(new_line)
-            
 
-            new_document.total_amount = round(total_doc_amount_without_vat, 2)
-            
-
-            db.session.commit()
-            print(f'Документ №{generated_id} успішно створено!', 'success')
-            return redirect(url_for('documents_list'))
-
-        except Exception as e:
-            db.session.rollback()
-            print(f"Помилка при збереженні документа: {e}", 'error')
-            # Для налагодження
-            raise e 
- 
-    # Передаємо next_id у шаблон
-    return render_template('create_document.html', 
-                            form=form, 
-                            nomenclatures=nomenclatures_data,
-                            next_id=next_id)
+        for old_id, old_line in existing_lines.items():
+            if old_id not in processed_ids:
+                old_line.is_deleted = True
+                
+                old_line.quantity = 0
+                old_line.total_amount = 0
+                old_line.total_with_vat = 0
+                old_line.vat_amount = 0
 
 
-    
-@app.route('/document/<int:doc_id>')
-def view_document(doc_id):
+        
+        document.total_amount = total_doc_sum
+        db.session.commit()
+        
+        return jsonify({
+            'status': 'success', 
+            'message': 'Збережено!', 
+            'doc_id': document.documents_id,
+            'doc_number': document.document_number
+        })
 
-    document = db.session.execute(
-        db.select(Document)
-        .filter_by(documents_id=doc_id)
-        .options(selectinload(Document.counterparty))
-    ).scalar_one_or_none()
-
-    if document is None:
-        abort(404) 
-
-    lines = db.session.execute(
-        db.select(DocumentLine)
-        .filter_by(document_id=doc_id)
-        .options(selectinload(DocumentLine.nomenclature))
-        .order_by(DocumentLine.product_item_id) 
-    ).scalars().all()
-    
-    return render_template('view_document.html', document=document, lines=lines)
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'status': 'error', 'message': str(e)}), 500
 
 
-
-
-@app.route('/document/<string:doc_id>/post', methods=['POST'])
+@app.route('/api/document/<string:doc_id>/post', methods=['POST'])
 def post_document(doc_id):
     posting_service = DocumentPostingService(db.session)
 
     try:
         posting_service.post_document(doc_id)
-        flash('Документ успішно проведено (FIFO)!', 'success')
+        return jsonify({'status': 'success', 'message': 'Документ успішно проведено (FIFO)!'})
         
     except InsufficientStockError as e:
-        # Специфічна помилка залишків
         db.session.rollback()
-        flash(f'Помилка залишків: {str(e)}', 'error')
+        return jsonify({'status': 'error', 'message': f'Помилка залишків: {str(e)}'}), 400
         
     except PostingError as e:
-        # Загальна помилка логіки (вже проведено, не той тип тощо)
+
         db.session.rollback()
-        flash(f'Неможливо провести документ: {str(e)}', 'warning')
+        return jsonify({'status': 'error', 'message': str(e)}), 400
         
     except Exception as e:
-        # Непередбачена технічна помилка
         db.session.rollback()
-        flash(f'Системна помилка: {str(e)}', 'error')
-        # Тут можна додати логування помилки
-
-    return redirect(url_for('view_document', doc_id=doc_id))
-
-@app.route('/inventory')
-def inventory_list():
-    # Отримуємо всі залишки. Завдяки lazy="joined" у моделі, 
-    # дані про номенклатуру підтягнуться автоматично.
-    balances = db.session.execute(
-        db.select(InventoryBalance)
-        .join(InventoryBalance.nomenclature) 
-        .order_by(Nomenclature.nomenclature_name)
-    ).scalars().all()
-
-    return render_template('inventory_list.html', balances=balances)
+        return jsonify({'status': 'error', 'message': f'Системна помилка: {str(e)}'}), 500
 
 
+@app.route('/document/new')
+@app.route('/document/<string:doc_id>')
+def document_card(doc_id=None):
+    counterparties = db.session.execute(db.select(Counterparty)).scalars().all()
+    nomenclatures = db.session.execute(db.select(Nomenclature)).scalars().all()
 
-
-
-
-def _handle_document_creation_based_on(source_id, target_type, contract_name_generator, success_message):
-    """
-    Універсальна функція для створення документа на підставі іншого.
+    document = None
+    can_be_posted = False
+    available_action = None
+    doc_types = DocumentForm.DOC_TYPES
+    lines = []
     
-    :param source_id: ID документа-підстави
-    :param target_type: Тип нового документа (напр. 'Видаткова накладна')
-    :param contract_name_generator: Функція (lambda), яка приймає source_doc і повертає рядок 'contract_name'
-    :param success_message: Текст повідомлення про успіх
+
+    next_id = "(Авто)" 
+
+
+    is_edit_mode = (doc_id is not None and doc_id != 'new')
+
+    if is_edit_mode: 
+        document = db.session.execute(
+            db.select(Document).filter_by(documents_id=doc_id)
+        ).scalar_one_or_none()
+        
+
+        if not document:
+            abort(404, description="Документ не знайдено")
+
+
+        next_id = document.document_number
+        
+        lines = db.session.execute(
+            db.select(DocumentLine)
+            .filter_by(document_id=doc_id, is_deleted=False)
+            .options(selectinload(DocumentLine.nomenclature))
+        ).scalars().all()
+
+        if document.operation_type in ["Прибуткова накладна", "Видаткова накладна"]:
+            can_be_posted = True
+
+        im = InventoryManager(db.session)
+        strategy = DocumentStrategyFactory.get_strategy(document.operation_type, db.session, im)
+        
+        next_type = strategy.next_document_type
+        if next_type:
+            available_action = {
+                'label': next_type, 
+                'url': url_for('create_based_on', source_id=document.documents_id)
+            }
+
+
+    return render_template(
+        'document_card.html',
+        document=document,
+        lines=lines,
+        counterparties=counterparties,
+        nomenclatures=nomenclatures,
+        doc_id=doc_id if doc_id else 'new',
+        next_id=next_id, # Тепер ця змінна гарантовано існує
+        today_date=date.today(),
+        doc_types=doc_types,
+        available_action=available_action,
+        can_be_posted=can_be_posted
+    )
+
+@app.route('/document/<string:source_id>/create_next')
+def create_based_on(source_id):
     """
-    
-    # 1. Шукаємо документ-підставу
+    Універсальний метод створення наступного документа в ланцюжку.
+    """
+
     source_doc = db.session.execute(
-        db.select(Document)
-        .filter_by(documents_id=source_id)
+        db.select(Document).filter_by(documents_id=source_id)
         .options(selectinload(Document.lines))
     ).scalar_one_or_none()
 
     if not source_doc:
-        abort(404)
+        flash("Документ-підставу не знайдено", "error")
+        return redirect(url_for('documents_list'))
 
-    # Завантажуємо довідники (для форми)
-    counterparties = db.session.execute(db.select(Counterparty).order_by(Counterparty.counterparty_name)).scalars().all()
-    nomenclatures = db.session.execute(db.select(Nomenclature).order_by(Nomenclature.nomenclature_name)).scalars().all()
+    im = InventoryManager(db.session)
+    strategy = DocumentStrategyFactory.get_strategy(source_doc.operation_type, db.session, im)
+    target_type = strategy.next_document_type
 
+    if not target_type:
+        flash(f"Для документа типу '{source_doc.operation_type}' не передбачено створення на підставі.", "warning")
+        return redirect(url_for('document_card', doc_id=source_id))
 
-    form = DocumentForm(request.form)
-    form.counterparty_id.choices = [('', 'Оберіть контрагента')] + [
-        (str(cp.counterparty_id), cp.counterparty_name) for cp in counterparties
-    ]
+    
+    counterparties = db.session.execute(db.select(Counterparty)).scalars().all()
+    nomenclatures = db.session.execute(db.select(Nomenclature)).scalars().all()
+    
 
-    #  GET: Заповнення форми даними з джерела
-    if request.method == 'GET':
-        form.operation_type.data = target_type
-        form.counterparty_id.data = source_doc.counterparty_id
+    new_doc = Document(
+        document_date=datetime.now(),
+        operation_type=target_type,
+        counterparty_id=source_doc.counterparty_id,
+        contract_name=f"Основ.: {source_doc.operation_type} №{source_doc.documents_id}"
+    )
+
+    lines_data = []
+    for line in source_doc.lines:
         
-        # Очищення та заповнення рядків
-        while len(form.lines) > 0:
-            form.lines.pop_entry()
-            
-        for line in source_doc.lines:
-            form.lines.append_entry({
-                'nomenclature_id': line.nomenclature_id,
-                'quantity': line.quantity,
-                'price_with_vat': line.price_with_vat
-            })
+        lines_data.append(line) 
 
-    #  POST: Збереження через Service Layer
-    if request.method == 'POST' and form.validate_on_submit():
-        try:
-            # Генеруємо назву договору/підстави динамічно
-            contract_text = contract_name_generator(source_doc)
-            
-            # Викликаємо сервіс для збереження
-            DocumentService.create_document_from_form(
-                form=form,
-                operation_type=target_type,
-                contract_name=contract_text
-            )
-            
-            flash(success_message, 'success')
-            return redirect(url_for('documents_list'))
-            
-        except Exception as e:
-            flash(f"Помилка при збереженні: {str(e)}", 'error')
+    flash(f"Створення '{target_type}' на підставі '{source_doc.operation_type} №{source_doc.document_number}'", "info")
 
-    return render_template('create_document.html', form=form, nomenclatures=nomenclatures)
-
-
-
-@app.route('/document/<string:source_id>/create_invoice', methods=['GET', 'POST'])
-def create_invoice_based_on(source_id):
-    return _handle_document_creation_based_on(
-        source_id=source_id,
-        target_type="Рахунок фактура",
-        contract_name_generator=lambda src: f"На підставі {src.operation_type} №{src.documents_id}",
-        success_message="Рахунок фактура успішно створений!"
+    return render_template(
+        'document_card.html',
+        document=new_doc,           
+        lines=lines_data,           
+        counterparties=counterparties,
+        nomenclatures=nomenclatures,
+        doc_id='new',               
+        next_id='(Авто)',
+        today_date=date.today(),
+        doc_types=DocumentForm.DOC_TYPES
     )
 
-@app.route('/document/<string:source_id>/create_outgoing', methods=['GET', 'POST'])
-def create_outgoing_based_on(source_id):
-    return _handle_document_creation_based_on(
-        source_id=source_id,
-        target_type="Видаткова накладна",
-        contract_name_generator=lambda src: f"На підставі {src.operation_type} №{src.documents_id}",
-        success_message="Видаткову накладну успішно створено!"
-    )
 
-@app.route('/document/<string:source_id>/create_tax_invoice', methods=['GET', 'POST'])
-def create_tax_invoice_based_on(source_id):
-    return _handle_document_creation_based_on(
-        source_id=source_id,
-        target_type="Податкова накладна",
-        contract_name_generator=lambda src: f"Податкова накладна до {src.operation_type} №{src.documents_id}",
-        success_message="Податкову накладну успішно створено!"
-    )
 
+
+@app.route('/inventory')
+def inventory_list():
+    query = db.select(InventoryBalance)\
+        .join(InventoryBalance.nomenclature)\
+        .filter(InventoryBalance.quantity > 0)\
+        .order_by(
+            Nomenclature.nomenclature_name, 
+            InventoryBalance.batch_date
+        )
+
+
+    balances = db.session.execute(query).scalars().all()
+
+    return render_template('inventory_list.html', balances=balances)
 
 
 
@@ -372,6 +396,9 @@ def print_document_page(doc_id):
         .options(selectinload(DocumentLine.nomenclature))
         .order_by(DocumentLine.product_item_id)
     ).scalars().all()
+
+    im = InventoryManager(db.session)
+    strategy = DocumentStrategyFactory.get_strategy(document.operation_type, db.session, im)
     
     # Рендеримо спеціальний шаблон для друку
-    return render_template('print_document.html', document=document, lines=lines)
+    return render_template('print_document.html', document=document, lines=lines, strategy=strategy)
